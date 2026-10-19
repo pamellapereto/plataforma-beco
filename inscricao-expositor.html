@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Inscrição | Feira Beco do Inferno</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="association.css">
+  <link rel="stylesheet" href="form-enhancements.css">
+</head>
+<body>
+  <header class="site-header"><a class="brand" href="index.html"><span class="brand-symbol">B</span><span>BECO<br>memória viva</span></a><nav class="nav"><a href="index.html">Início</a><a href="feiras.html">Nossas feiras</a><a href="expositores.html">Expositores</a><a href="sobre.html">A Associação</a></nav><div class="header-actions"><a class="btn btn-secondary" href="login.html">Entrar</a></div></header>
+  <main>
+    <form class="form-shell" data-curation-form data-message="Inscrição recebida para análise da curadoria.">
+      <div class="form-head"><span class="eyebrow">37ª Feira Beco do Inferno</span><h1>Inscrição para expositores</h1><p>10 anos · 18 de outubro de 2026. As informações abaixo são usadas exclusivamente para a análise da curadoria e a organização da edição.</p></div>
+      <div class="form-body">
+        <section class="form-section">
+          <div class="form-step"><b>1</b><span>Identificação e presença profissional</span></div>
+          <div class="form-grid">
+            <label class="form-field">Nome completo<input required name="name" placeholder="Seu nome"></label>
+            <label class="form-field">WhatsApp<input required name="whatsapp" inputmode="tel" placeholder="(15) 99999-9999"></label>
+            <label class="form-field">E-mail<input required name="email" type="email" placeholder="voce@email.com"></label>
+            <label class="form-field">Confirme seu e-mail<input required name="emailConfirmation" type="email" placeholder="voce@email.com"></label>
+            <label class="form-field full">Instagram profissional<input required name="instagram" type="url" placeholder="https://instagram.com/seu_perfil"></label>
+          </div>
+          <p class="form-note"><strong>Importante:</strong> a curadoria usa o Instagram profissional informado para conhecer o trabalho e avaliar a seleção.</p>
+        </section>
+
+        <section class="form-section">
+          <div class="form-step"><b>2</b><span>Categoria e proposta de exposição</span></div>
+          <div class="form-grid">
+            <label class="form-field full">Categoria principal<select id="curationCategory" required name="category"><option value="" selected disabled>Selecione uma categoria</option><option value="ARTES_VISUAIS">Artes visuais</option><option value="ARTESANATO">Artesanato</option><option value="COSMETICOS">Cosméticos artesanais</option><option value="LIVROS_AUTORAIS">Livros da própria autora ou autor</option><option value="MODA_AUTORAL">Roupas costuradas à mão ou personalizadas artesanalmente</option><option value="SEBO">Sebo de livros, discos ou antiguidades colecionáveis</option><option value="BRECHO">Brechó, garimpo e vintage</option></select></label>
+          </div>
+          <div class="conditional-panel is-hidden" data-form-branch="authorial">
+            <h3>Trabalho autoral</h3><p>Conte o que será levado para a feira e o processo que existe por trás do seu trabalho.</p>
+            <div class="form-grid"><label class="form-field full">O que você levará para a feira?<textarea required name="authorialItems" placeholder="Descreva os produtos, materiais, conceito e proposta."></textarea></label></div>
+            <label class="check-row"><input required type="checkbox" name="authorialConfirmation"><span>Confirmo que levarei apenas os produtos descritos nesta inscrição.</span></label>
+          </div>
+          <div class="conditional-panel is-hidden" data-form-branch="collectibles">
+            <h3>Acervo, sebo ou brechó</h3><p>Selecione os tipos de itens e informe o período predominante do acervo.</p>
+            <div class="form-choice-grid"><label class="form-choice"><input type="checkbox" name="collectionItems" value="Livros usados">Livros usados</label><label class="form-choice"><input type="checkbox" name="collectionItems" value="HQs e zines">HQs e zines</label><label class="form-choice"><input type="checkbox" name="collectionItems" value="Discos e mídias">Discos, CDs, fitas K7, VHS ou DVDs originais</label><label class="form-choice"><input type="checkbox" name="collectionItems" value="Objetos de coleção">Objetos de coleção, brinquedos ou jogos</label><label class="form-choice"><input type="checkbox" name="collectionItems" value="Cédulas e selos">Cédulas, moedas e selos</label><label class="form-choice"><input type="checkbox" name="collectionItems" value="Brechó">Brechó, garimpo e vintage</label></div>
+            <div class="form-grid" style="margin-top:14px"><label class="form-field full">De quais períodos são os objetos que você comercializa?<input required name="collectionPeriod" placeholder="Ex.: décadas de 1970 a 1990"></label></div>
+            <label class="check-row"><input required type="checkbox" name="prohibitedItemsConfirmation"><span>Estou ciente de que armas, conteúdo pornográfico e materiais de alusão nazifascista ou a qualquer tipo de violência são proibidos.</span></label>
+          </div>
+        </section>
+
+        <section class="form-section">
+          <div class="form-step"><b>3</b><span>Relação com a feira e estrutura</span></div>
+          <div class="form-grid"><label class="form-field full">Por que você gostaria de participar da Feira Beco do Inferno?<textarea required name="motivation" placeholder="Conte um pouco sobre seu interesse em participar."></textarea></label><label class="form-field">Você já participou ou se inscreveu em alguma edição?<select required name="previousParticipation"><option value="" selected disabled>Selecione</option><option>Sim, já participei de algumas edições</option><option>Não, será minha primeira edição</option><option>Já me inscrevi, mas não fui selecionado</option></select></label><label class="form-field">Estrutura que pretende levar<select required name="structure"><option value="" selected disabled>Selecione</option><option>Somente mesa expositora e cadeira</option><option>Tenda 3x3</option><option>Tenda 2,5 x 2,5</option><option>Tenda 2x2</option><option>Guarda-sol</option></select></label></div>
+          <p class="form-note"><strong>Estrutura:</strong> a feira não disponibiliza mesas, cadeiras ou tendas. Cada pessoa é responsável pela própria estrutura, respeitando o limite máximo de 3x3 metros.</p>
+          <div class="form-choice-grid"><label class="form-choice"><input required type="radio" name="feeAwareness" value="contribuir">Entendo a necessidade e posso contribuir com a taxa após a seleção.</label><label class="form-choice"><input required type="radio" name="feeAwareness" value="isencao">No momento não posso pagar e desejo concorrer à política de isenção.</label></div>
+          <label class="check-row"><input required type="checkbox" name="groupConfirmation"><span>Estou ciente de que, se selecionado, preciso entrar no grupo de WhatsApp para receber as orientações de montagem e localização no mapa.</span></label>
+        </section>
+
+        <section class="form-section">
+          <div class="form-step"><b>4</b><span>Portfólio e informações de cuidado</span></div>
+          <div class="upload-area">Adicione fotos que representem seu trabalho.<input data-portfolio-files required type="file" name="portfolioFiles" accept="image/jpeg,image/png,image/webp" multiple><p class="file-summary" data-file-summary>Nenhum arquivo selecionado.</p></div>
+          <p class="form-note">Envie imagens com boa luz, foco e produto visível. A equipe poderá solicitar ajustes antes de concluir a curadoria.</p>
+          <div class="form-grid"><label class="form-field">Etnia<select name="ethnicity"><option>Prefiro não responder</option><option>Branca</option><option>Preta</option><option>Parda</option><option>Amarela</option><option>Indígena</option></select></label><label class="form-field">Gênero<select name="gender"><option>Prefiro não responder</option><option>Mulher</option><option>Homem</option><option>Não binárie</option><option>Outro</option></select></label><label class="form-field">Cidade<input required name="city" placeholder="Sua cidade"></label><label class="form-field">Bairro<input required name="neighborhood" placeholder="Seu bairro"></label><label class="form-field full">Você necessita de alguma adaptação ou recurso de acessibilidade?<textarea name="accessibility" placeholder="Opcional. Conte como a equipe pode tornar sua participação mais confortável."></textarea></label></div>
+        </section>
+
+        <section class="form-section">
+          <div class="form-step"><b>5</b><span>Compromissos da edição</span></div>
+          <label class="check-row"><input required type="checkbox" name="noResale"><span>Estou ciente de que é proibida a exposição e comercialização de produtos de terceiros ou industrializados.</span></label>
+          <label class="check-row"><input required type="checkbox" name="feePolicy"><span>Li e concordo com a política de isenção, não devolução após confirmação e condições de realização da feira.</span></label>
+          <label class="check-row"><input required type="checkbox" name="terms"><span>Li e concordo com as regras, horários de montagem, mapa da feira, cuidados com o espaço público, descarte correto de resíduos e respeito à vizinhança.</span></label>
+          <label class="check-row"><input type="checkbox" name="publicPortfolio"><span>Após aprovação, autorizo que meu perfil e portfólio apareçam publicamente no diretório de expositores.</span></label>
+          <div class="hero-actions"><button class="btn btn-primary" type="submit">Enviar para curadoria</button><a class="btn btn-secondary" href="feira-beco.html">Voltar à feira</a></div>
+        </section>
+      </div>
+    </form>
+  </main>
+  <footer class="site-footer"><div class="footer-grid"><div><h3>Inscrições BECO</h3><p>A análise é feita pela equipe de curadoria de cada feira.</p></div><div><h3>Dúvidas</h3><p>associacaoculturalsorocaba@gmail.com</p></div><div><h3>Associação</h3><p>Memória, arte e geração de renda.</p></div></div><div class="footer-bottom">by Uirá Cardoso</div></footer>
+  <div class="toast" id="toast" role="status"></div>
+  <script src="script.js"></script>
+</body>
+</html>

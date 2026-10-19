@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Curadoria | BECO</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="association.css">
+  <link rel="stylesheet" href="form-enhancements.css">
+  <link rel="stylesheet" href="curadoria-modal.css">
+  <link rel="stylesheet" href="application-flow.css">
+</head>
+<body class="private-layout">
+  <aside class="private-sidebar">
+    <a class="brand" href="index.html"><span class="brand-symbol">B</span><span>BECO<br>memória viva</span></a>
+    <a class="active" href="curadoria.html">Visão geral</a><a href="#inscricoes">Inscrições</a><a href="#fotos">Análise de fotos</a><a href="#mapa">Mapa e espaços</a><a href="index.html">Ir para o site</a>
+  </aside>
+  <main class="private-main">
+    <div class="private-heading">
+      <div><span class="eyebrow">Equipe da Associação</span><h1>Curadoria e organização</h1><p>Veja o que cada edição precisa para receber, avaliar e confirmar seus expositores.</p></div>
+      <div class="curation-toolbar"><button class="btn btn-secondary" type="button" data-toast="Filtros de curadoria abertos no protótipo.">Filtrar inscrições</button><button class="btn btn-primary" type="button" data-open-fair-modal>Nova feira</button></div>
+    </div>
+
+    <section class="dash-stats"><article><span>Inscrições em análise</span><b>24</b></article><article><span>Fotos pendentes</span><b>8</b></article><article><span>Pedidos de isenção</span><b>5</b></article><article><span>Feiras com inscrições abertas</span><b>1</b></article></section>
+
+    <section class="fair-context" aria-label="Feiras para gerenciamento">
+      <article class="fair-context-card active"><span class="eyebrow">Edição em foco</span><h2>37ª Feira Beco do Inferno</h2><p>18 de outubro de 2026 · inscrições até 4 de outubro</p><div><span class="status review">Inscrições abertas</span><b>24 inscritos</b></div></article>
+      <article class="fair-context-card"><span class="eyebrow">Próxima seleção</span><h2>OCA Feira Cultural</h2><p>Cadastro em preparação para a nova edição.</p><div><span class="status pending">Rascunho</span><b>0 inscritos</b></div></article>
+      <article class="fair-context-card"><span class="eyebrow">Histórico</span><h2>Feira da Vila Operária</h2><p>Relatórios, expositores e avaliações da última edição.</p><div><span class="status approved">Encerrada</span><b>41 participantes</b></div></article>
+    </section>
+
+    <section class="fair-pending-grid">
+      <a href="#inscricoes"><b>24</b><span>formulários recebidos</span><small>Ver inscritos da Feira Beco do Inferno</small></a>
+      <a href="#fotos"><b>08</b><span>fotos em revisão</span><small>Portfólios aguardando curadoria</small></a>
+      <a href="#inscricoes"><b>05</b><span>pedidos de isenção</span><small>Requerem parecer da equipe</small></a>
+      <a href="#inscricoes"><b>03</b><span>inscrições incompletas</span><small>Informações ou anexos pendentes</small></a>
+    </section>
+
+    <section class="panel" id="inscricoes">
+      <div class="panel-title"><div><span class="eyebrow">37ª Feira Beco do Inferno</span><h2>Inscritos e formulários</h2><p>Cada inscrição reúne respostas, anexos, solicitação de isenção e o estágio atual da análise.</p></div><button class="btn btn-small btn-secondary" type="button" data-toast="Exportação de inscritos preparada no protótipo.">Exportar lista</button></div>
+      <div class="table-wrap"><table class="data-table"><thead><tr><th>Expositor</th><th>Categoria</th><th>Formulário</th><th>Fotos</th><th>Isenção</th><th>Status</th><th>Ação</th></tr></thead><tbody>
+        <tr><td><div class="table-person"><img src="assets/expositor-madeira-human.jpg" alt=""><div><b>Arte em Madeira</b><span>6 participações</span></div></div></td><td>Artesanato</td><td><span class="status approved">Completo</span></td><td><span class="status review">Em revisão</span></td><td>Não solicitada</td><td><span class="status review">Em análise</span></td><td><button class="btn btn-small btn-primary" type="button" data-view-application="madeira">Ver formulário</button></td></tr>
+        <tr><td><div class="table-person"><img src="assets/expositor-trama-human.jpg" alt=""><div><b>Trama Livre</b><span>Primeira inscrição</span></div></div></td><td>Moda autoral</td><td><span class="status approved">Completo</span></td><td><span class="status review">1 ajuste</span></td><td><span class="status pending">Solicitada</span></td><td><span class="status pending">Aguardando vaga</span></td><td><button class="btn btn-small btn-primary" type="button" data-view-application="tramaBeco">Ver formulário</button></td></tr>
+        <tr><td><div class="table-person"><img src="assets/expositor-luz-human.jpg" alt=""><div><b>Luz do Design</b><span>2 participações</span></div></div></td><td>Artes visuais</td><td><span class="status approved">Completo</span></td><td><span class="status approved">Aprovadas</span></td><td><span class="status pending">Solicitada</span></td><td><span class="status review">Em análise</span></td><td><button class="btn btn-small btn-primary" type="button" data-view-application="luz">Ver formulário</button></td></tr>
+        <tr><td><div class="table-person"><img src="assets/expositor-madeira-human.jpg" alt=""><div><b>Papel de Rua</b><span>Nova inscrição</span></div></div></td><td>Literatura</td><td><span class="status pending">Incompleto</span></td><td><span class="status pending">Não enviadas</span></td><td>Não solicitada</td><td><span class="status pending">Aguardando envio</span></td><td><button class="btn btn-small btn-secondary" type="button" data-toast="A inscrição está aguardando o envio de informações obrigatórias.">Ver pendências</button></td></tr>
+      </tbody></table></div>
+    </section>
+
+    <section class="curation-focus" id="fotos">
+      <article class="panel"><div class="panel-title"><div><span class="eyebrow">Análise de fotos</span><h2>Portfólios que precisam de revisão</h2><p>A imagem só poderá ir para a página pública depois da aprovação da curadoria.</p></div></div><div class="table-wrap"><table class="data-table"><thead><tr><th>Expositor</th><th>Referência</th><th>Critério</th><th>Status</th><th>Ações</th></tr></thead><tbody><tr><td>Trama Livre</td><td>Foto 03</td><td>Produto pouco visível</td><td><span class="status review">Em revisão</span></td><td><button class="btn btn-small btn-primary" data-review-action="approve">Aprovar</button><button class="btn btn-small btn-secondary" data-review-action="reject">Pedir ajuste</button></td></tr><tr><td>Papel de Rua</td><td>Instagram</td><td>Iluminação insuficiente</td><td><span class="status review">Em revisão</span></td><td><button class="btn btn-small btn-primary" data-review-action="approve">Aprovar</button><button class="btn btn-small btn-secondary" data-review-action="reject">Pedir ajuste</button></td></tr></tbody></table></div></article>
+      <aside class="panel"><span class="eyebrow">Mensagem de curadoria</span><h2 style="margin:7px 0;font-size:22px">Orientação pronta</h2><p style="color:var(--muted);line-height:1.6">“Recebemos sua imagem, mas o produto está pouco visível. Envie uma nova foto com boa luz, foco e fundo mais limpo para concluirmos a análise.”</p><button class="btn btn-outline" data-toast="Mensagem preparada; o envio de e-mail será conectado posteriormente.">Preparar mensagem</button></aside>
+    </section>
+
+    <section class="panel" id="mapa"><div class="panel-title"><div><span class="eyebrow">Montagem da feira</span><h2>Mapa de espaços e coordenadas</h2><p>Posições demonstrativas. A planta oficial poderá ser carregada no cadastro da edição.</p></div><button class="btn btn-small btn-primary" data-toast="Novo espaço adicionado ao mapa demonstrativo.">Adicionar espaço</button></div><div class="fair-map"><span class="map-title">Beco do Inferno · planta de ocupação</span><span class="map-legend">L1, L2, F1, F8, E4, E8, E9</span><span class="spot" style="left:14%;top:37%">L1</span><span class="spot you" style="left:31%;top:37%">L2</span><span class="spot large" style="left:52%;top:30%">F1</span><span class="spot" style="left:71%;top:34%">F8</span><span class="spot large" style="left:22%;top:64%">E4</span><span class="spot" style="left:48%;top:66%">E8</span><span class="spot" style="left:69%;top:68%">E9</span></div></section>
+  </main>
+
+  <div class="detail-backdrop" data-application-modal aria-hidden="true"><section class="application-modal" role="dialog" aria-modal="true" aria-labelledby="application-modal-title"><header><div><span class="eyebrow">Inscrição recebida</span><h2 id="application-modal-title">Formulário do expositor</h2><p data-application-summary></p></div><button class="modal-close" type="button" data-close-application-modal aria-label="Fechar">×</button></header><div class="application-modal-body" data-application-content></div><footer><button class="btn btn-secondary" type="button" data-close-application-modal>Fechar</button><button class="btn btn-primary" type="button" data-toast="Parecer de curadoria registrado no protótipo.">Registrar parecer</button></footer></section></div>
+
+  <div class="modal-backdrop" data-fair-modal aria-hidden="true"><section class="fair-modal" role="dialog" aria-modal="true" aria-labelledby="fair-modal-title"><header class="fair-modal-header"><div><span class="eyebrow">Nova edição</span><h2 id="fair-modal-title">Criar uma feira</h2></div><button class="modal-close" type="button" data-close-fair-modal aria-label="Fechar">×</button></header><form class="fair-modal-form" data-message="Rascunho da feira salvo.">
+    <section class="modal-section"><h3>Identificação e agenda</h3><p>Informações que aparecem na página pública e orientam o processo de inscrição.</p><div class="form-grid"><label class="form-field">Feira base<select required><option value="" selected disabled>Selecione</option><option>Feira Beco do Inferno</option><option>OCA Feira Cultural</option><option>Feira da Vila Operária</option><option>REVIVA</option></select></label><label class="form-field">Nome da edição<input required placeholder="Ex.: 38ª Feira Beco do Inferno"></label><label class="form-field">Status inicial<select required><option>Rascunho</option><option>Publicada</option></select></label><label class="form-field">Data do evento<input required type="date"></label><label class="form-field">Início<input required type="time"></label><label class="form-field">Encerramento<input required type="time"></label></div></section>
+    <section class="modal-section"><h3>Inscrições e seleção</h3><p>Defina o período, as vagas e o formulário que a curadoria utilizará.</p><div class="form-grid"><label class="form-field">Abertura das inscrições<input required type="datetime-local"></label><label class="form-field">Encerramento das inscrições<input required type="datetime-local"></label><label class="form-field">Limite de expositores<input required type="number" min="1" value="60"></label><label class="form-field">Modelo de formulário<select required><option>37ª Feira Beco do Inferno - curadoria</option><option>Modelo geral de expositor</option></select></label><label class="form-field">Política de isenção<select><option>Até 10% das vagas</option><option>Não aplicável nesta edição</option></select></label><label class="form-field">Perfil público<select><option>Opcional, após aprovação</option><option>Somente curadoria</option></select></label></div></section>
+    <section class="modal-section"><h3>Localização e ocupação</h3><p>Dados para a página da feira, o mapa de visitantes e a organização dos espaços.</p><div class="form-grid"><label class="form-field full">Endereço<input required placeholder="Rua, número e complemento"></label><label class="form-field">Bairro<input required placeholder="Centro"></label><label class="form-field">Cidade<input required value="Sorocaba"></label><label class="form-field">Link do Google Maps<input type="url" placeholder="https://maps.google.com/"></label><label class="form-field">Planta da feira<input type="file" accept="image/jpeg,image/png,image/webp,application/pdf"></label><label class="form-field">Espaços previstos<input type="text" placeholder="L1, L2, F1, F8, E4..."></label></div><div class="modal-choices"><label class="modal-choice"><input type="checkbox" checked> Módulos 2x2</label><label class="modal-choice"><input type="checkbox" checked> Módulos 3x3</label><label class="modal-choice"><input type="checkbox"> Área de alimentação</label><label class="modal-choice"><input type="checkbox"> Ponto de energia</label></div></section>
+    <section class="modal-section"><h3>Conteúdo público e categorias</h3><p>Essas informações formam a landing da edição e apoiam o equilíbrio da seleção.</p><div class="form-grid"><label class="form-field full">Descrição pública<textarea required placeholder="Apresente a proposta cultural desta edição."></textarea></label><label class="form-field full">Orientações de montagem e convivência<textarea placeholder="Horário de chegada, descarte de resíduos, cuidados com o espaço e regras adicionais."></textarea></label><label class="form-field full">Imagem de capa<input type="file" accept="image/jpeg,image/png,image/webp"></label></div><div class="modal-choices"><label class="modal-choice"><input type="checkbox" checked> Artes visuais</label><label class="modal-choice"><input type="checkbox" checked> Artesanato</label><label class="modal-choice"><input type="checkbox" checked> Moda autoral</label><label class="modal-choice"><input type="checkbox"> Literatura</label><label class="modal-choice"><input type="checkbox"> Sebos e antiguidades</label><label class="modal-choice"><input type="checkbox"> Gastronomia</label></div></section>
+    <footer class="modal-footer"><p class="modal-feedback" data-modal-feedback>O rascunho ficará privado até a publicação.</p><div class="hero-actions"><button class="btn btn-secondary" type="button" data-close-fair-modal>Cancelar</button><button class="btn btn-primary" type="submit">Salvar rascunho</button></div></footer>
+  </form></section></div>
+  <div class="toast" id="toast" role="status"></div>
+  <script src="script.js"></script>
+  <script src="curadoria-modal.js"></script>
+  <script src="application-detail.js"></script>
+</body>
+</html>

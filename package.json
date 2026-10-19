@@ -1,0 +1,9 @@
+{
+  "name": "beco-memoria-viva",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": { "dev": "vercel dev", "check": "node --check api/v1/[...path].js && node --check script.js" },
+  "dependencies": { "@supabase/supabase-js": "^2.57.0" },
+  "devDependencies": { "vercel": "^41.7.0" }
+}
