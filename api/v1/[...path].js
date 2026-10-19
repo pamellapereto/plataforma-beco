@@ -38,7 +38,10 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(204).end();
   try {
     const { admin, public: publicClient } = clients();
-    const routePath = req.query.path || [];
+    const pathname = new URL(req.url || '/', 'http://localhost').pathname;
+    const routePath = pathname.startsWith('/api/v1/')
+      ? pathname.slice('/api/v1/'.length)
+      : req.query?.path || [];
     const parts = (Array.isArray(routePath) ? routePath : String(routePath).split('/')).filter(Boolean);
     const [resource, id, action] = parts;
     const body = req.body || {};
