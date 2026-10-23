@@ -1,0 +1,16 @@
+{
+  "name": "feira-cultura-backedb",
+  "version": "0.4.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node --env-file=.env --watch src/server.js",
+    "start": "node src/server.js",
+    "test": "node --test",
+    "bootstrap:admin": "node --env-file=.env src/scripts/bootstrap-admin.js",
+    "seed:demo": "node --env-file=.env src/scripts/seed-demo.js"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

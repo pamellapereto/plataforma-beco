@@ -1,9 +1,20 @@
 {
-  "name": "beco-memoria-viva",
-  "version": "1.0.0",
+  "name": "plataforma-beco",
+  "version": "0.4.0",
   "private": true,
   "type": "module",
-  "scripts": { "dev": "vercel dev", "check": "node --check api/v1/[...path].js && node --check script.js" },
-  "dependencies": { "@supabase/supabase-js": "^2.57.0" },
-  "devDependencies": { "vercel": "^41.7.0" }
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "playwright-core": "1.56.1"
+  },
+  "scripts": {
+    "test": "node --test tests/*.test.mjs",
+    "test:ui": "node tools/verify-ui.mjs",
+    "test:integration": "node tools/verify-live.mjs"
+  },
+  "dependencies": {
+    "leaflet": "1.9.4"
+  }
 }

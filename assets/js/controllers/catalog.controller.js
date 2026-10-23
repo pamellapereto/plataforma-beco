@@ -1,3 +1,4 @@
+import { mountLocation } from '../maps.js';
 import { api } from '../models/api.model.js';
 import { error, loading, renderCategoryOptions, renderExhibitorDetail, renderExhibitors, renderFairDetail, renderFairs, renderMetrics } from '../views/catalog.view.js';
 
@@ -52,9 +53,9 @@ export async function initializeCatalog(page) {
 
   if (page === 'fair-detail') {
     const main = document.querySelector('main');
-    const slug = new URLSearchParams(location.search).get('edicao') || document.body.dataset.editionSlug || '37-feira-beco-do-inferno';
+    const slug = new URLSearchParams(location.search).get('edicao') || document.body.dataset.editionSlug || ({'feira-oca':'oca-feira-cultural-novembro-2026','feira-vila':'feira-vila-operaria-dezembro-2026','feira-reviva':'reviva-fevereiro-2027'}[location.pathname.split('/').pop().replace(/\.html$/, '')] || '37-feira-beco-do-inferno');
     loading(main, 'Carregando a feira...');
-    try { renderFairDetail(main, await api.fair(slug)); } catch (problem) { error(main, problem.message); }
+    try { const edition=await api.fair(slug);const summary=await api.editionEvaluationSummary(slug);const organizationSummary=summary.organizationId?await api.organizationEvaluationSummary(summary.organizationId):null;renderFairDetail(main, edition, summary, organizationSummary);mountLocation(main.querySelector('[data-event-map]'),edition.location); } catch (problem) { error(main, problem.message); }
   }
 
   if (page === 'exhibitor-detail') {

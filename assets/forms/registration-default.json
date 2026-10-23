@@ -1,0 +1,261 @@
+{
+  "title": "Inscrição para expositores - 37ª Feira Beco do Inferno",
+  "introduction": "As informações são utilizadas exclusivamente pela equipe da Associação para analisar a inscrição e organizar a edição. Campos de diversidade e acessibilidade são privados.",
+  "isPublished": false,
+  "consents": [
+    {
+      "key": "informacoes_verdadeiras",
+      "text": "Declaro que as informações e imagens enviadas são verdadeiras e representam o trabalho apresentado na inscrição."
+    },
+    {
+      "key": "responsabilidade_produtos",
+      "text": "Declaro que sou responsável pela origem, qualidade, segurança e regularidade dos produtos que levarei à feira."
+    },
+    {
+      "key": "regras_montagem",
+      "text": "Comprometo-me a cumprir os horários, as orientações de montagem, desmontagem, limpeza e convivência definidos pela organização."
+    },
+    {
+      "key": "uso_imagens_curadoria",
+      "text": "Autorizo o uso das imagens enviadas para análise da curadoria e, quando aprovadas, para divulgação desta edição."
+    },
+    {
+      "key": "tratamento_dados",
+      "text": "Estou ciente do tratamento dos meus dados para inscrição, curadoria, organização e comunicação relacionadas à feira."
+    }
+  ],
+  "sections": [
+    {
+      "title": "Identificação e presença profissional",
+      "description": "Dados utilizados pela curadoria para contato e conhecimento do trabalho.",
+      "fields": [
+        {
+          "fieldKey": "nome_responsavel",
+          "label": "Nome completo da pessoa responsável",
+          "type": "SHORT_TEXT",
+          "isRequired": true,
+          "validation": { "maxLength": 180 }
+        },
+        {
+          "fieldKey": "whatsapp",
+          "label": "WhatsApp para contato",
+          "type": "PHONE",
+          "isRequired": true,
+          "validation": { "maxLength": 30 }
+        },
+        {
+          "fieldKey": "email_contato",
+          "label": "E-mail para contato",
+          "type": "EMAIL",
+          "isRequired": true,
+          "validation": { "maxLength": 255 }
+        },
+        {
+          "fieldKey": "instagram_profissional",
+          "label": "Instagram profissional",
+          "helpText": "Informe o perfil utilizado para apresentar seus produtos ou seu trabalho.",
+          "type": "URL",
+          "isRequired": true,
+          "validation": { "maxLength": 500 }
+        }
+      ]
+    },
+    {
+      "title": "Categoria e proposta de exposição",
+      "fields": [
+        {
+          "fieldKey": "categoria_principal",
+          "label": "Categoria principal da exposição",
+          "type": "SELECT",
+          "isRequired": true,
+          "options": [
+            { "value": "artes_visuais", "label": "Artes visuais" },
+            { "value": "artesanato", "label": "Artesanato" },
+            { "value": "cosmeticos", "label": "Cosméticos" },
+            { "value": "livros_autorais", "label": "Livros e publicações autorais" },
+            { "value": "moda_autoral", "label": "Moda autoral" },
+            { "value": "sebo_brecho", "label": "Sebo, brechó e antiguidades" },
+            { "value": "gastronomia", "label": "Gastronomia" },
+            { "value": "outros", "label": "Outros" }
+          ]
+        },
+        {
+          "fieldKey": "produtos_expostos",
+          "label": "Quais produtos ou trabalhos você pretende expor?",
+          "type": "LONG_TEXT",
+          "isRequired": true,
+          "validation": { "maxLength": 3000 }
+        },
+        {
+          "fieldKey": "materiais_processos",
+          "label": "Quais materiais e processos são utilizados?",
+          "type": "LONG_TEXT",
+          "isRequired": true,
+          "validation": { "maxLength": 3000 },
+          "conditionalLogic": {
+            "fieldKey": "categoria_principal",
+            "operator": "in",
+            "value": ["artes_visuais", "artesanato", "cosmeticos", "livros_autorais", "moda_autoral", "gastronomia"]
+          }
+        },
+        {
+          "fieldKey": "conceito_trabalho",
+          "label": "Conte a história, o conceito ou a motivação do seu trabalho",
+          "type": "LONG_TEXT",
+          "isRequired": true,
+          "validation": { "maxLength": 4000 }
+        },
+        {
+          "fieldKey": "itens_sebo_brecho",
+          "label": "Descreva os tipos e períodos dos itens do sebo, brechó ou acervo",
+          "type": "LONG_TEXT",
+          "isRequired": true,
+          "validation": { "maxLength": 3000 },
+          "conditionalLogic": {
+            "fieldKey": "categoria_principal",
+            "operator": "equals",
+            "value": "sebo_brecho"
+          }
+        }
+      ]
+    },
+    {
+      "title": "Histórico e relação com a feira",
+      "fields": [
+        {
+          "fieldKey": "motivacao_participacao",
+          "label": "Por que você deseja participar desta edição?",
+          "type": "LONG_TEXT",
+          "isRequired": true,
+          "validation": { "maxLength": 3000 }
+        },
+        {
+          "fieldKey": "participacoes_anteriores",
+          "label": "Conte sobre participações anteriores em feiras e eventos",
+          "type": "LONG_TEXT",
+          "isRequired": false,
+          "validation": { "maxLength": 3000 }
+        }
+      ]
+    },
+    {
+      "title": "Estrutura e espaço",
+      "description": "A preferência informada será considerada, mas a definição final depende da planta e da curadoria.",
+      "fields": [
+        {
+          "fieldKey": "espaco_preferido",
+          "label": "Qual tamanho de espaço atende melhor à sua exposição?",
+          "type": "RADIO",
+          "isRequired": true,
+          "options": [
+            { "value": "2x2", "label": "2 x 2 metros" },
+            { "value": "3x3", "label": "3 x 3 metros" },
+            { "value": "flexivel", "label": "Posso utilizar qualquer opção disponível" }
+          ]
+        },
+        {
+          "fieldKey": "estrutura_propria",
+          "label": "Descreva mesas, araras, expositores ou outras estruturas que você levará",
+          "type": "LONG_TEXT",
+          "isRequired": true,
+          "validation": { "maxLength": 2000 }
+        },
+        {
+          "fieldKey": "necessidades_eletricas",
+          "label": "Informe necessidades de energia elétrica ou montagem especial",
+          "type": "LONG_TEXT",
+          "isRequired": false,
+          "validation": { "maxLength": 2000 }
+        }
+      ]
+    },
+    {
+      "title": "Diversidade e acessibilidade",
+      "description": "Respostas privadas, utilizadas somente para cuidado, acessibilidade e acompanhamento institucional. É possível preferir não responder.",
+      "fields": [
+        {
+          "fieldKey": "etnia",
+          "label": "Como você se identifica em relação à raça ou etnia?",
+          "type": "SELECT",
+          "isRequired": false,
+          "isSensitive": true,
+          "isPrivate": true,
+          "options": [
+            { "value": "branca", "label": "Branca" },
+            { "value": "preta", "label": "Preta" },
+            { "value": "parda", "label": "Parda" },
+            { "value": "amarela", "label": "Amarela" },
+            { "value": "indigena", "label": "Indígena" },
+            { "value": "outra", "label": "Outra" },
+            { "value": "nao_responder", "label": "Prefiro não responder" }
+          ]
+        },
+        {
+          "fieldKey": "identidade_genero",
+          "label": "Como você descreve sua identidade de gênero?",
+          "type": "SHORT_TEXT",
+          "isRequired": false,
+          "isSensitive": true,
+          "isPrivate": true,
+          "validation": { "maxLength": 120 }
+        },
+        {
+          "fieldKey": "pcd",
+          "label": "Você é uma pessoa com deficiência?",
+          "type": "RADIO",
+          "isRequired": false,
+          "isSensitive": true,
+          "isPrivate": true,
+          "options": [
+            { "value": "nao", "label": "Não" },
+            { "value": "fisica", "label": "Sim, deficiência física" },
+            { "value": "mental_intelectual", "label": "Sim, deficiência mental ou intelectual" },
+            { "value": "multipla_outra", "label": "Sim, múltipla ou outra" },
+            { "value": "nao_responder", "label": "Prefiro não responder" }
+          ]
+        },
+        {
+          "fieldKey": "apoio_acessibilidade",
+          "label": "Há alguma necessidade de acessibilidade ou apoio que a organização deva conhecer?",
+          "type": "LONG_TEXT",
+          "isRequired": false,
+          "isSensitive": true,
+          "isPrivate": true,
+          "validation": { "maxLength": 2000 }
+        },
+        {
+          "fieldKey": "bairro",
+          "label": "Bairro onde você mora ou desenvolve seu trabalho",
+          "type": "SHORT_TEXT",
+          "isRequired": false,
+          "isPrivate": true,
+          "validation": { "maxLength": 120 }
+        }
+      ]
+    },
+    {
+      "title": "Portfólio para curadoria",
+      "description": "Envie imagens nítidas, bem iluminadas e representativas dos produtos ou trabalhos que estarão na feira.",
+      "fields": [
+        {
+          "fieldKey": "fotos_produtos",
+          "label": "Fotos dos produtos e do trabalho",
+          "helpText": "Envie de 3 a 6 imagens em JPEG, PNG ou WebP, com até 10 MB cada.",
+          "type": "IMAGE",
+          "isRequired": true,
+          "isPrivate": true,
+          "validation": { "minFiles": 3, "maxFiles": 6 }
+        },
+        {
+          "fieldKey": "foto_cracha",
+          "label": "Foto para identificação ou crachá",
+          "helpText": "Campo opcional nesta etapa. A organização poderá solicitar a foto após a aprovação.",
+          "type": "IMAGE",
+          "isRequired": false,
+          "isPrivate": true,
+          "validation": { "minFiles": 0, "maxFiles": 1 }
+        }
+      ]
+    }
+  ]
+}
