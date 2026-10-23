@@ -134,18 +134,34 @@ export class ApplicationsService {
   async saveAnswers(applicationId, input, principal) {
     const application = await this.applicationAccess(applicationId, principal);
     if (!editableStatuses.has(application.status)) throw new HttpError(409, 'APPLICATION_NOT_EDITABLE', 'Esta inscrição não pode ser editada.');
-    const answers = validateAnswers(input);
-    const fieldIds = answers.map((answer) => answer.fieldId);
+    const submittedAnswers = validateAnswers(input);
+    if (submittedAnswers.some((answer) => answer.value === null || answer.value === undefined)) {
+      throw new HttpError(422, 'INVALID_ANSWER_VALUE', 'A resposta de uma pergunta não pode ser nula.');
+    }
     const form = await this.forms.getByEdition(application.fair_edition_id, { allowUnpublished: true });
-    const fields = form.sections.flatMap((section) => section.fields).filter((field) => fieldIds.includes(field.id));
+    const allFields = form.sections.flatMap((section) => section.fields);
+    const allFieldById = new Map(allFields.map((field) => [field.id, field]));
+    const fieldIds = submittedAnswers.map((answer) => answer.fieldId);
+    const fields = fieldIds.map((fieldId) => allFieldById.get(fieldId)).filter(Boolean);
     if (fields.length !== fieldIds.length) throw new HttpError(422, 'INVALID_ANSWERS', 'Uma ou mais perguntas não pertencem ao formulário desta edição.');
-    const fieldById = new Map(fields.map((field) => [field.id, field]));
-    const optionsByField = new Map(fields.map((field) => [field.id, new Set(field.options.map((option) => option.value))]));
+    const storedAnswers = allFields.some((field) => field.conditional_logic?.fieldKey)
+      ? await this.gateway.request(`rest/v1/application_answers?select=field_id,value_json&application_id=eq.${applicationId}`)
+      : [];
+    const mergedValues = new Map(storedAnswers.map((answer) => [answer.field_id, answer.value_json]));
+    for (const answer of submittedAnswers) mergedValues.set(answer.fieldId, answer.value);
+    const answersByKey = new Map(allFields.map((field) => [field.field_key, mergedValues.get(field.id)]));
+    const answers = submittedAnswers.filter((answer) => conditionApplies(allFieldById.get(answer.fieldId), answersByKey));
+    const fieldById = new Map(allFields.map((field) => [field.id, field]));
+    const optionsByField = new Map(allFields.map((field) => [field.id, new Set((field.options || []).map((option) => option.value))]));
     for (const answer of answers) validateAnswerValue(fieldById.get(answer.fieldId), answer.value, optionsByField.get(answer.fieldId) || new Set());
     if (answers.length) {
+      const rows = answers.map((answer) => ({ application_id: applicationId, field_id: answer.fieldId, value_json: answer.value, updated_at: new Date().toISOString() }));
+      if (rows.some((row) => row.value_json === null || row.value_json === undefined)) {
+        throw new HttpError(422, 'INVALID_ANSWER_VALUE', 'A resposta de uma pergunta não pode ser nula.');
+      }
       await this.gateway.request('rest/v1/application_answers?on_conflict=application_id,field_id', {
         method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=representation' },
-        body: answers.map((answer) => ({ application_id: applicationId, field_id: answer.fieldId, value_json: answer.value, updated_at: new Date().toISOString() }))
+        body: rows
       });
     }
     if (input.requestedSpaceType !== undefined) {

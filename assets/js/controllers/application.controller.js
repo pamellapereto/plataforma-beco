@@ -9,6 +9,14 @@ export function conditionApplies(field, answers) {
   if(c.operator==='contains')return Array.isArray(value)&&value.includes(c.value);
   return value===c.value;
 }
+export function enabledApplicationAnswers(fields,form,valueOf) {
+  return fields.filter(field => {
+    if(['IMAGE','FILE'].includes(field.type))return false;
+    const control=form.elements[`field_${field.id}`];
+    return control&&!control.disabled;
+  }).map(field=>({fieldId:field.id,value:valueOf(field)}))
+    .filter(answer=>answer.value!==null&&answer.value!==undefined);
+}
 export function applicationDetailHtml(detail) {
   const answers=new Map(detail.answers.map(a=>[a.field_id,a.value_json]));
   return `${status(detail.application.status)}<p>Protocolo: ${h(detail.application.id)}</p>${detail.exhibitor?`<p><b>${h(detail.exhibitor.display_name)}</b> · ${h(detail.exhibitor.contact_name)} · ${h(detail.exhibitor.phone)}</p>`:''}
@@ -60,7 +68,7 @@ export async function initializeApplication() {
     saving=true;const savedRevision=unsaved.revision;const buttons=[...form.querySelectorAll('button[type=submit]')];buttons.forEach(b=>b.disabled=true);notice(feedback,'Salvando e enviando arquivos…',true);
     try{
       if(!applicationId){const created=await api.request(`/fair-editions/${editionId}/applications`,{method:'POST',body:{requestedSpaceType:form.elements.requestedSpaceType.value}});applicationId=created.id;history.replaceState(null,'',`inscricao-expositor.html?inscricao=${encodeURIComponent(applicationId)}`);}
-      const answers=fields.filter(f=>!['IMAGE','FILE'].includes(f.type)).map(f=>({fieldId:f.id,value:form.elements[`field_${f.id}`].disabled?null:valueOf(f)}));
+      const answers=enabledApplicationAnswers(fields,form,valueOf);
       await api.request(`/applications/${applicationId}/answers`,{method:'PUT',body:{answers,requestedSpaceType:form.elements.requestedSpaceType.value}});
       for(const f of fields.filter(f=>['IMAGE','FILE'].includes(f.type))){const input=form.elements[`field_${f.id}`];if(input.disabled)continue;const files=[...input.files];const existing=media.filter(m=>m.field_id===f.id).length;if(existing+files.length>Number(f.validation?.maxFiles||20))throw Error(`Excesso de arquivos em ${f.label}.`);if(!draft&&f.is_required&&existing+files.length<Number(f.validation?.minFiles||1))throw Error(`Envie as imagens solicitadas em ${f.label}.`);
        for(const file of files){await api.upload(file,`/applications/${applicationId}/media`,{fieldId:f.id,role:'PORTFOLIO'});input.value='';media=(await api.request(`/applications/${applicationId}`)).media;renderMedia();}

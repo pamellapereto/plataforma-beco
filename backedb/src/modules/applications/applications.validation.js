@@ -13,8 +13,11 @@ export function validateAnswers(input = {}) {
   if (!Array.isArray(input.answers) || input.answers.length > 120) throw new HttpError(422, 'INVALID_ANSWERS', 'Envie uma lista válida de respostas.');
   const ids = new Set();
   return input.answers.map((answer) => {
-    const fieldId = validateUuid(answer.fieldId, 'Pergunta');
+    const fieldId = validateUuid(answer?.fieldId, 'Pergunta');
     if (ids.has(fieldId)) throw new HttpError(422, 'DUPLICATE_ANSWER', 'Uma pergunta foi respondida mais de uma vez.');
+    if (answer?.value === null || answer?.value === undefined) {
+      throw new HttpError(422, 'INVALID_ANSWER_VALUE', 'A resposta de uma pergunta não pode ser nula.');
+    }
     ids.add(fieldId);
     return { fieldId, value: answer.value };
   });
