@@ -48,7 +48,7 @@ export async function initializeAuth(page) {
     if (data.email.toLowerCase() !== data.emailConfirmation.toLowerCase()) throw Error('Os e-mails devem ser iguais.');
     const payload=await api.request('/auth/register/exhibitor',{method:'POST',auth:false,body:{...data,acceptedTerms:!!data.acceptedTerms,profileVisibility:'PRIVATE'}});
     if (payload.session) {api.saveSession(payload);location.href=safeNext('EXHIBITOR');}
-    else { form.reset(); notice(form.querySelector('[data-feedback]'),'Cadastro criado. Confirme seu e-mail para entrar. Confira também a pasta de spam.',true); }
+    else { form.reset(); notice(form.querySelector('[data-feedback]'),payload.emailConfirmationRequired ? 'Cadastro criado. Confirme seu e-mail para entrar. Confira também a pasta de spam.' : 'Cadastro criado. Você já pode entrar com seu e-mail e senha.',true); }
   });
   bindForm(document.querySelector('[data-recovery-form]'), async (_data,form) => {
     await api.request('/auth/password/recover',{method:'POST',auth:false,body:{email:form.elements.email.value}});

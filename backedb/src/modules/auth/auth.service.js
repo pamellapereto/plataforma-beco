@@ -52,7 +52,10 @@ export class AuthService {
   async registerExhibitor(input) {
     if (!config.auth.exhibitorRegistrationEnabled) throw new HttpError(403, 'REGISTRATION_CLOSED', 'O cadastro de expositores está temporariamente fechado.');
     const data = validateExhibitorRegistration(input);
-    const authResult = await this.gateway.signUpWithPassword(data);
+    const localAutoConfirm = config.auth.localAutoConfirm;
+    const authResult = localAutoConfirm
+      ? await this.gateway.adminCreateAuthUser(data)
+      : await this.gateway.signUpWithPassword(data);
     const authUser = authUserFrom(authResult);
     const identities = authUser?.identities;
     if (!authUser?.id || (Array.isArray(identities) && identities.length === 0)) {
@@ -92,7 +95,8 @@ export class AuthService {
         exhibitor: profiles[0],
         status: 'PENDING',
         canApplyToFairs: true,
-        emailConfirmationRequired: !normalizeSession(authResult),
+        emailConfirmationRequired: !localAutoConfirm && !normalizeSession(authResult),
+        localAutoConfirm,
         session: normalizeSession(authResult)
       };
     } catch (error) {

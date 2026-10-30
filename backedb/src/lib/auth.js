@@ -1,5 +1,6 @@
 import { HttpError } from './http.js';
-import { authenticatedSupabaseUser, supabaseRequest } from './supabase.js';
+import { dataRequest } from './persistence.js';
+import { authenticatedSupabaseUser } from './supabase.js';
 
 export function bearerTokenFrom(request) {
   const authorization = request.headers.authorization || '';
@@ -9,7 +10,7 @@ export function bearerTokenFrom(request) {
 export async function requirePrincipal(request) {
   const token = bearerTokenFrom(request);
   const authUser = await authenticatedSupabaseUser(token);
-  const profiles = await supabaseRequest(`rest/v1/app_users?select=id,role,is_active,organization_id,full_name,email&id=eq.${encodeURIComponent(authUser.id)}`);
+  const profiles = await dataRequest(`rest/v1/app_users?select=id,role,is_active,organization_id,full_name,email&id=eq.${encodeURIComponent(authUser.id)}`);
   const profile = profiles[0];
   if (!profile || !profile.is_active) throw new HttpError(403, 'ACCOUNT_DISABLED', 'Conta sem acesso à plataforma.');
   return {

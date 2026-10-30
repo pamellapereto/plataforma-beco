@@ -2,8 +2,12 @@ import { randomBytes } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { config } from '../config.js';
-import { adminCreateAuthUser, supabaseRequest } from '../lib/supabase.js';
+import { config, usesPostgres } from '../config.js';
+import { dataRequest } from '../lib/persistence.js';
+import { mirrorPostgresAuthUser } from '../lib/postgres.js';
+import { adminCreateAuthUser } from '../lib/supabase.js';
+
+const supabaseRequest = dataRequest;
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
 const bucket = config.supabase.publicMediaBucket;
@@ -40,9 +44,9 @@ async function authUser(email, fullName) {
   });
   if (!response.ok) throw new Error(`Falha ao consultar usuarios do Auth (${response.status}).`);
   const existing = (await response.json()).users?.find(user => user.email?.toLowerCase() === email.toLowerCase());
-  if (existing) return existing;
-  const created = await adminCreateAuthUser({ email, password: password(), fullName });
-  return created.user || created;
+  const user = existing || ((await adminCreateAuthUser({ email, password: password(), fullName })).user);
+  if (usesPostgres()) await mirrorPostgresAuthUser(user);
+  return user;
 }
 
 async function upload(file, objectPath, mimeType, owner = {}) {

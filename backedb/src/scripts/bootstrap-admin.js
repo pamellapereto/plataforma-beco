@@ -1,4 +1,7 @@
-import { adminCreateAuthUser, adminDeleteAuthUser, supabaseRequest } from '../lib/supabase.js';
+import { usesPostgres } from '../config.js';
+import { dataRequest } from '../lib/persistence.js';
+import { mirrorPostgresAuthUser } from '../lib/postgres.js';
+import { adminCreateAuthUser, adminDeleteAuthUser } from '../lib/supabase.js';
 import { normalizeEmail, validatePassword } from '../modules/auth/auth.validation.js';
 
 function required(name, value) {
@@ -8,12 +11,12 @@ function required(name, value) {
 }
 
 async function findOrCreateOrganization() {
-  const organizations = await supabaseRequest('rest/v1/organizations?select=id,display_name&order=created_at.asc&limit=1');
+  const organizations = await dataRequest('rest/v1/organizations?select=id,display_name&order=created_at.asc&limit=1');
   if (organizations[0]) return organizations[0];
 
   const legalName = required('BOOTSTRAP_ORGANIZATION_LEGAL_NAME', process.env.BOOTSTRAP_ORGANIZATION_LEGAL_NAME);
   const displayName = required('BOOTSTRAP_ORGANIZATION_DISPLAY_NAME', process.env.BOOTSTRAP_ORGANIZATION_DISPLAY_NAME);
-  const created = await supabaseRequest('rest/v1/organizations', {
+  const created = await dataRequest('rest/v1/organizations', {
     method: 'POST',
     headers: { Prefer: 'return=representation' },
     body: { legal_name: legalName, display_name: displayName }
@@ -27,7 +30,7 @@ async function bootstrap() {
   const fullName = required('BOOTSTRAP_ADMIN_NAME', process.env.BOOTSTRAP_ADMIN_NAME);
   validatePassword(password);
 
-  const existing = await supabaseRequest(
+  const existing = await dataRequest(
     `rest/v1/app_users?select=id,email&email=eq.${encodeURIComponent(email)}&limit=1`
   );
   if (existing.length) throw new Error('Ja existe um perfil com esse e-mail. O bootstrap nao foi executado.');
@@ -37,7 +40,8 @@ async function bootstrap() {
   const authUser = authResult.user || authResult;
 
   try {
-    await supabaseRequest('rest/v1/app_users', {
+    if (usesPostgres()) await mirrorPostgresAuthUser(authUser);
+    await dataRequest('rest/v1/app_users', {
       method: 'POST',
       headers: { Prefer: 'return=representation' },
       body: {

@@ -1,8 +1,8 @@
-import { supabaseGateway } from '../lib/supabase.js';
+import { persistenceGateway } from '../lib/persistence.js';
 
 // Camada Model: concentra a comunicacao persistente com Auth, PostgREST e Storage.
 export class SupabaseModel {
-  constructor(gateway = supabaseGateway) {
+  constructor(gateway = persistenceGateway) {
     this.gateway = gateway;
   }
 

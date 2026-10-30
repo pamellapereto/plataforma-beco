@@ -1,5 +1,6 @@
-import { config } from '../config.js';
+import { config, hasDatabaseConfig } from '../config.js';
 import { notFound, sendJson } from '../lib/http.js';
+import { checkDatabaseConnection } from '../lib/persistence.js';
 
 function route(method, matcher, action) {
   return { method, matcher, action };
@@ -14,7 +15,11 @@ function paramsFor(path, matcher) {
 export function createApiRouter(controllers) {
   const { auth, applications, curation, exhibitors, evaluations, fairs, fairMedia, forms, media, spaces } = controllers;
   const routes = [
-    route('GET', '/api/v1/health', (_req, res) => sendJson(res, 200, { data: { status: 'ok', environment: config.environment, architecture: 'MVC + Service Layer' } })),
+    route('GET', '/api/v1/health', async (_req, res) => {
+      if (!hasDatabaseConfig()) return sendJson(res, 503, { data: { status: 'configuration_required', environment: config.environment, databaseProvider: config.database.provider } });
+      const database = await checkDatabaseConnection();
+      return sendJson(res, 200, { data: { status: 'ok', environment: config.environment, databaseProvider: config.database.provider, database, architecture: 'MVC + Service Layer' } });
+    }),
     route('GET', '/api/v1/fair-categories', (req, res) => fairs.categories(req, res)),
     route('GET', '/api/v1/fairs', (req, res, url) => fairs.listPublic(req, res, url)),
     route('GET', '/api/v1/exhibitor-categories', (req, res) => exhibitors.categories(req, res)),

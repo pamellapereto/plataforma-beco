@@ -22,10 +22,32 @@ Os dados privados são lidos e alterados pela API do servidor, que confere o tok
 
 ```sh
 npm install
-cp .env.example .env.local
+Copy-Item .env.example .env.local
 # preencha .env.local com os valores do seu projeto Supabase
-npm run dev
+npm run dev:api
 ```
+
+## Supabase ou PostgreSQL local
+
+A persistência de dados pode ser selecionada com `DATABASE_PROVIDER`:
+
+- `supabase` (padrão): banco, Auth e Storage no Supabase.
+- `postgres`: tabelas de negócio no PostgreSQL indicado por `DATABASE_URL`; Auth e Storage permanecem no Supabase. Esse modo híbrido permite testar consultas e regras locais sem duplicar o sistema de autenticação e arquivos.
+
+Para preparar um PostgreSQL local vazio:
+
+```sh
+Copy-Item .env.example .env.local
+# configure DATABASE_PROVIDER=postgres, DATABASE_URL e as credenciais do Supabase
+npm run db:setup
+npm run dev:api
+```
+
+Use um banco vazio: `db:setup` instala a compatibilidade mínima com os schemas do Supabase e aplica todas as migrations em ordem. Contas autenticadas no Supabase precisam ter o mesmo UUID em `auth.users` e `public.app_users` no banco local. O endpoint `GET /api/v1/health` informa o provider ativo.
+
+Para voltar ao Supabase, altere apenas `DATABASE_PROVIDER=supabase`; `DATABASE_URL` será ignorada pela API.
+
+Em desenvolvimento, o modo PostgreSQL usa `LOCAL_AUTH_AUTO_CONFIRM=true` para criar contas confirmadas sem consumir o limite de e-mails do Supabase. A confirmação automática é desativada por padrão quando `NODE_ENV=production`.
 
 ## Publicar
 
