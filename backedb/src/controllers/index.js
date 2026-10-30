@@ -21,6 +21,8 @@ import { EvaluationsService } from '../modules/evaluations/evaluations.service.j
 import { createHomepageController } from '../modules/homepage/homepage.controller.js';
 import { HomepageService } from '../modules/homepage/homepage.service.js';
 import { supabaseModel } from '../models/supabase.model.js';
+import { createAboutController } from '../modules/about/about.controller.js';
+import { AboutService } from '../modules/about/about.service.js';
 
 export function createControllers(model = supabaseModel) {
   const formsService = new FormsService(model);
@@ -28,6 +30,7 @@ export function createControllers(model = supabaseModel) {
   const applicationsService = new ApplicationsService(model, formsService, mediaService);
 
   return {
+    about: createAboutController(new AboutService(model)),
     auth: createAuthController(new AuthService(model)),
     applications: createApplicationsController(applicationsService),
     curation: createCurationController(new CurationService(model, applicationsService)),

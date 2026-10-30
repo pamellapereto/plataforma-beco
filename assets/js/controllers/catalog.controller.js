@@ -23,6 +23,13 @@ export function applyHomepageContent(content,root=document) {
   const image=root.querySelector('[data-home-image]');if(image){image.src=content.imageUrl;image.alt=content.imageAlt||'';}
 }
 
+export function applyAboutContent(content,root=document){
+ const values=[['[data-about-intro-eyebrow]','introEyebrow'],['[data-about-intro-title]','introTitle'],['[data-about-intro-text]','introText'],['[data-about-history-eyebrow]','historyEyebrow'],['[data-about-history-title]','historyTitle'],['[data-about-motto-label]','mottoLabel'],['[data-about-motto-text]','mottoText'],['[data-about-support-eyebrow]','supportEyebrow'],['[data-about-support-title]','supportTitle'],['[data-about-support-text]','supportText']];
+ for(const [selector,key] of values){const element=root.querySelector(selector);if(element)element.textContent=content[key]||'';}
+ root.querySelectorAll('[data-about-history-paragraph]').forEach((element,index)=>{element.textContent=content.historyParagraphs?.[index]||'';});
+ root.querySelectorAll('[data-about-fact]').forEach((element,index)=>{const fact=content.facts?.[index]||{};element.querySelector('b').textContent=fact.value||'';element.querySelector('span').textContent=fact.label||'';});
+}
+
 export async function initializeCatalog(page) {
   if (page === 'home') {
     const metrics = document.querySelector('[data-home-metrics], .metric-grid');
@@ -44,6 +51,10 @@ export async function initializeCatalog(page) {
     const container = document.querySelector('[data-fairs-list], main .fair-grid');
     loading(container);
     try { renderFairs(container, await api.fairs()); } catch (problem) { error(container, problem.message); }
+  }
+
+  if(page==='about'){
+    try{applyAboutContent(await api.about());}catch{/* O conteúdo estático permanece disponível. */}
   }
 
   if (page === 'exhibitors') {

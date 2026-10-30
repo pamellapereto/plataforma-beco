@@ -65,8 +65,11 @@ export class ApiModel {
 
   fairs(city) { return this.request(`/fairs${city ? `?city=${encodeURIComponent(city)}` : ''}`, { auth: false }); }
   homepage() { return this.request('/homepage', { auth: false }); }
+  about() { return this.request('/about', { auth: false }); }
   adminHomepage() { return this.request('/admin/homepage'); }
   saveHomepage(body) { return this.request('/admin/homepage', { method: 'PUT', body }); }
+  adminAbout() { return this.request('/admin/about'); }
+  saveAbout(body) { return this.request('/admin/about', { method: 'PUT', body }); }
   async openEditions(now = new Date()) {
     const timestamp = now instanceof Date ? now.getTime() : new Date(now).getTime();
     const fairs = await this.fairs();

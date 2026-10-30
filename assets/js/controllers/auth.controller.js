@@ -19,7 +19,7 @@ export async function initializeAuth(page) {
   }
   const registerLink=document.querySelector('[data-register-link]');
   if(registerLink)registerLink.href=`cadastro-expositor.html${location.search}`;
-  const requiredRole = ['curation-dashboard','home-editor'].includes(page) ? 'BECO_ADMIN' : ['exhibitor-dashboard','application'].includes(page) ? 'EXHIBITOR' : null;
+  const requiredRole = ['curation-dashboard','home-editor','about-editor'].includes(page) ? 'BECO_ADMIN' : ['exhibitor-dashboard','application'].includes(page) ? 'EXHIBITOR' : null;
   let session = api.session();
   if (requiredRole) {
     if (!session) { location.replace(`login.html?next=${encodeURIComponent(location.pathname + location.search)}`); return false; }

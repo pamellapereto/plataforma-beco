@@ -36,7 +36,8 @@ const migrationSentinels = {
   '20261021174539_geographic_stand_coordinates.sql': `exists(select 1 from information_schema.columns where table_schema='public' and table_name='fair_spaces' and column_name='latitude')`,
   '20261023170715_post_event_attendance_and_evaluations.sql': `to_regclass('public.event_evaluations') is not null`,
   '20261023170731_secure_attendance_audit_trigger.sql': `to_regclass('public.application_attendance') is not null and to_regprocedure('public.audit_application_attendance()') is not null`,
-  '20261030120000_homepage_content.sql': `to_regclass('public.homepage_content') is not null`
+  '20261030120000_homepage_content.sql': `to_regclass('public.homepage_content') is not null`,
+  '20261030130000_about_content.sql': `to_regclass('public.about_content') is not null`
 };
 
 function checksum(source) {
