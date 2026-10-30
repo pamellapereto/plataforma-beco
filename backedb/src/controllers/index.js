@@ -18,6 +18,8 @@ import { createSpacesController } from '../modules/spaces/spaces.controller.js';
 import { SpacesService } from '../modules/spaces/spaces.service.js';
 import { createEvaluationsController } from '../modules/evaluations/evaluations.controller.js';
 import { EvaluationsService } from '../modules/evaluations/evaluations.service.js';
+import { createHomepageController } from '../modules/homepage/homepage.controller.js';
+import { HomepageService } from '../modules/homepage/homepage.service.js';
 import { supabaseModel } from '../models/supabase.model.js';
 
 export function createControllers(model = supabaseModel) {
@@ -34,6 +36,7 @@ export function createControllers(model = supabaseModel) {
     fairs: createFairsController(new FairsService(model)),
     fairMedia: createFairMediaController(new FairMediaService(model)),
     forms: createFormsController(formsService),
+    homepage: createHomepageController(new HomepageService(model)),
     media: createMediaController(mediaService),
     spaces: createSpacesController(new SpacesService(model, formsService))
   };

@@ -13,7 +13,7 @@ function paramsFor(path, matcher) {
 }
 
 export function createApiRouter(controllers) {
-  const { auth, applications, curation, exhibitors, evaluations, fairs, fairMedia, forms, media, spaces } = controllers;
+  const { auth, applications, curation, exhibitors, evaluations, fairs, fairMedia, forms, homepage, media, spaces } = controllers;
   const routes = [
     route('GET', '/api/v1/health', async (_req, res) => {
       if (!hasDatabaseConfig()) return sendJson(res, 503, { data: { status: 'configuration_required', environment: config.environment, databaseProvider: config.database.provider } });
@@ -22,6 +22,7 @@ export function createApiRouter(controllers) {
     }),
     route('GET', '/api/v1/fair-categories', (req, res) => fairs.categories(req, res)),
     route('GET', '/api/v1/fairs', (req, res, url) => fairs.listPublic(req, res, url)),
+    route('GET', '/api/v1/homepage', (req, res) => homepage.public(req, res)),
     route('GET', '/api/v1/exhibitor-categories', (req, res) => exhibitors.categories(req, res)),
     route('GET', '/api/v1/exhibitors', (req, res, url) => exhibitors.list(req, res, url)),
     route('GET', /^\/api\/v1\/exhibitors\/([0-9a-f-]{36})$/i, (req, res, _url, id) => exhibitors.detail(req, res, id)),
@@ -57,6 +58,10 @@ export function createApiRouter(controllers) {
     route('PUT', /^\/api\/v1\/me\/applications\/([0-9a-f-]{36})\/evaluation$/i, (req, res, _url, id) => evaluations.submit(req, res, id)),
 
     route('GET', '/api/v1/admin/fairs', (req, res) => fairs.listAdmin(req, res)),
+    route('GET', '/api/v1/admin/homepage', (req, res) => homepage.admin(req, res)),
+    route('PUT', '/api/v1/admin/homepage', (req, res) => homepage.update(req, res)),
+    route('POST', '/api/v1/admin/homepage/image/upload-url', (req, res) => homepage.uploadUrl(req, res)),
+    route('POST', '/api/v1/admin/homepage/image', (req, res) => homepage.completeUpload(req, res)),
     route('POST', '/api/v1/admin/fairs', (req, res) => fairs.createFair(req, res)),
     route('PATCH', /^\/api\/v1\/admin\/fairs\/([0-9a-f-]{36})$/i, (req, res, _url, id) => fairs.updateFair(req, res, id)),
     route('POST', /^\/api\/v1\/admin\/fairs\/([0-9a-f-]{36})\/editions$/i, (req, res, _url, id) => fairs.createEdition(req, res, id)),

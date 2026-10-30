@@ -17,6 +17,12 @@ function setupDirectoryFilter() {
   search?.addEventListener('input', filter);
 }
 
+export function applyHomepageContent(content,root=document) {
+  const values=[['[data-home-eyebrow]','eyebrow'],['[data-home-title]','title'],['[data-home-intro]','introText'],['[data-home-caption-title]','captionTitle'],['[data-home-caption-text]','captionText']];
+  for(const [selector,key] of values){const element=root.querySelector(selector);if(element)element.textContent=content[key]||'';}
+  const image=root.querySelector('[data-home-image]');if(image){image.src=content.imageUrl;image.alt=content.imageAlt||'';}
+}
+
 export async function initializeCatalog(page) {
   if (page === 'home') {
     const metrics = document.querySelector('[data-home-metrics], .metric-grid');
@@ -24,7 +30,8 @@ export async function initializeCatalog(page) {
     const exhibitorsContainer = document.querySelector('[data-home-exhibitors], main .exhibitor-grid');
     [metrics, fairsContainer, exhibitorsContainer].forEach(item => loading(item));
     try {
-      const [fairs, exhibitors] = await Promise.all([api.fairs(), api.exhibitors()]);
+      const [fairs, exhibitors, homepage] = await Promise.all([api.fairs(), api.exhibitors(), api.homepage().catch(() => null)]);
+      if(homepage)applyHomepageContent(homepage);
       renderMetrics(metrics, fairs, exhibitors);
       renderFairs(fairsContainer, fairs, 3);
       renderExhibitors(exhibitorsContainer, exhibitors, 3);

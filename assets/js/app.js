@@ -21,7 +21,8 @@ const page = document.body.dataset.page || ({
   'expositor.html': 'exhibitor-detail',
   'login.html': 'login',
   'area-expositor.html': 'exhibitor-dashboard',
-  'curadoria.html': 'curation-dashboard'
+  'curadoria.html': 'curation-dashboard',
+  'personalizar-home.html': 'home-editor'
 })[filename] || '';
 
 if (!document.querySelector('link[href="assets/workflows.css"]')) { const link=document.createElement('link');link.rel='stylesheet';link.href='assets/workflows.css';document.head.append(link); }
@@ -30,4 +31,5 @@ if (canInitialize !== false) {
   await initializeCatalog(page);
   if (['exhibitor-dashboard','curation-dashboard'].includes(page)) await (await import('./controllers/dashboard.controller.js')).initializeDashboard(page);
   if (page === 'application') await (await import('./controllers/application.controller.js')).initializeApplication();
+  if (page === 'home-editor') await (await import('./controllers/homepage.controller.js')).initializeHomepageEditor();
 }
