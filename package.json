@@ -11,9 +11,9 @@
   },
   "scripts": {
     "test": "node --test tests/*.test.mjs",
-    "db:setup": "node --env-file=.env tools/setup-local-db.mjs",
-    "dev": "node --env-file=.env --watch backedb/src/server.js",
-    "dev:api": "node --env-file=.env  --watch backedb/src/server.js",
+    "db:setup": "node --env-file=.env.local tools/setup-local-db.mjs",
+    "dev": "node --env-file=.env.local --watch backedb/src/server.js",
+    "dev:api": "node --env-file=.env.local  --watch backedb/src/server.js",
     "test:ui": "node tools/verify-ui.mjs",
     "test:integration": "node tools/verify-live.mjs"
   },
