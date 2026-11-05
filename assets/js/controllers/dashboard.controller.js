@@ -4,5 +4,5 @@ import { enhanceDashboard } from '../dashboard-ui.js';
 export async function initializeDashboard(page) {
  if(page==='exhibitor-dashboard')await exhibitorDashboard();
  if(page==='curation-dashboard')await curationDashboard();
- enhanceDashboard();
+ enhanceDashboard(page==='curation-dashboard'?{restoreDashboard:async()=>{await curationDashboard();enhanceDashboard();}}:{});
 }
