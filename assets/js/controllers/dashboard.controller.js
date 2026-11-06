@@ -1,8 +1,15 @@
 import { exhibitorDashboard } from './exhibitor.controller.js';
 import { curationDashboard } from './curation.controller.js';
-import { enhanceDashboard } from '../dashboard-ui.js';
+import { enhanceDashboard as enhanceAdminDashboard } from '../dashboard-ui.js';
+import { enhanceDashboard as enhanceExhibitorDashboard } from '../exhibitor-dashboard-ui.js';
 export async function initializeDashboard(page) {
- if(page==='exhibitor-dashboard')await exhibitorDashboard();
- if(page==='curation-dashboard')await curationDashboard();
- enhanceDashboard(page==='curation-dashboard'?{restoreDashboard:async()=>{await curationDashboard();enhanceDashboard();}}:{});
+ if(page==='exhibitor-dashboard'){
+  await exhibitorDashboard();
+  enhanceExhibitorDashboard();
+  return;
+ }
+ if(page==='curation-dashboard'){
+  await curationDashboard();
+  enhanceAdminDashboard({restoreDashboard:async()=>{await curationDashboard();enhanceAdminDashboard();}});
+ }
 }
