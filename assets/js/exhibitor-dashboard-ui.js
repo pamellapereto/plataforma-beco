@@ -1,122 +1,91 @@
-let observer;
 let contentObserver;
-let navigationLock;
-let restoreDashboard;
+let currentView = 'overview';
 
-function setActiveLink(id) {
- document.querySelectorAll('.private-sidebar [data-admin-view]').forEach(link => {
-  link.classList.remove('active');
-  link.removeAttribute('aria-current');
- });
- document.querySelectorAll('.private-sidebar a[href^="#"]').forEach(link => {
-  const active = link.getAttribute('href') === `#${id}`;
-  link.classList.toggle('active', active);
-  if (active) link.setAttribute('aria-current', 'location');
-  else link.removeAttribute('aria-current');
- });
-}
-
-function setActiveEditor(view) {
- document.querySelectorAll('.private-sidebar a[href^="#"]').forEach(link => {
-  link.classList.remove('active');
-  link.removeAttribute('aria-current');
- });
- document.querySelectorAll('.private-sidebar [data-admin-view]').forEach(link => {
-  const active = link.dataset.adminView === view;
-  link.classList.toggle('active', active);
-  if (active) link.setAttribute('aria-current', 'page');
-  else link.removeAttribute('aria-current');
- });
- const group = document.querySelector('.private-nav-group');
- if (group) group.open = true;
-}
+const views = {
+ overview: { title: 'Minha área', description: 'Acompanhe suas oportunidades, inscrições e a apresentação pública do seu trabalho.' },
+ opportunities: { title: 'Oportunidades', description: 'Encontre edições com inscrições abertas e escolha onde apresentar seu trabalho.' },
+ applications: { title: 'Minhas inscrições', description: 'Acompanhe cada candidatura, consulte orientações e faça os ajustes solicitados.' },
+ spaces: { title: 'Espaços confirmados', description: 'Consulte a localização e as informações do seu espaço nas feiras confirmadas.' },
+ evaluations: { title: 'Avaliações', description: 'Compartilhe sua experiência após participar de uma feira.' },
+ profile: { title: 'Meu perfil', description: 'Mantenha atualizadas as informações que identificam e apresentam seu trabalho.' },
+ portfolio: { title: 'Meu portfólio', description: 'Organize as imagens que poderão apresentar seus produtos e sua produção autoral.' }
+};
 
 function decoratePanels(main) {
  main.querySelectorAll(':scope > .panel').forEach((panel, index) => {
   panel.classList.add('dashboard-panel');
   panel.style.setProperty('--panel-order', index);
-  const heading = panel.querySelector(':scope > h2, :scope > .workflow-section-heading h2, :scope > .panel-title h2');
-  if (heading && panel.id && !heading.querySelector('.panel-anchor')) {
-   const anchor = document.createElement('a');
-   anchor.className = 'panel-anchor';
-   anchor.href = `#${panel.id}`;
-   anchor.setAttribute('aria-label', `Link direto para ${heading.textContent.trim()}`);
-   anchor.textContent = '#';
-   heading.append(anchor);
-  }
  });
 }
 
-function installScrollSpy(main) {
- if (observer) observer.disconnect();
- const sections = [...main.querySelectorAll('.panel[id]')];
- observer = new IntersectionObserver(entries => {
-  if (navigationLock) return;
-  const visible = entries.filter(entry => entry.isIntersecting).sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
-  if (visible) setActiveLink(visible.target.id);
- }, { rootMargin: '-18% 0px -68% 0px', threshold: [0, .2, .6] });
- sections.forEach(section => observer.observe(section));
-}
-
-function installSectionNavigation() {
- const sidebar = document.querySelector('.private-sidebar');
- if (!sidebar || sidebar.dataset.sectionNavigation === 'ready') return;
- sidebar.dataset.sectionNavigation = 'ready';
- sidebar.addEventListener('click', async event => {
-  const link = event.target.closest('a[href^="#"]');
-  if (!link) return;
-  let target = document.querySelector(link.getAttribute('href'));
-  if (!target && restoreDashboard) {
-   event.preventDefault();
-   await restoreDashboard();
-   target = document.querySelector(link.getAttribute('href'));
-  }
-  if (!target) return;
-  event.preventDefault();
-  const id = target.id;
-  setActiveLink(id);
-  navigationLock = id;
-  history.replaceState(null, '', `#${id}`);
-  target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  window.setTimeout(() => { navigationLock = null; setActiveLink(id); }, 700);
+function setActiveView(view) {
+ document.querySelectorAll('.private-sidebar [data-exhibitor-view]').forEach(link => {
+  const active = link.dataset.exhibitorView === view;
+  link.classList.toggle('active', active);
+  if (active) link.setAttribute('aria-current', 'page');
+  else link.removeAttribute('aria-current');
  });
+ const activeLink = document.querySelector(`.private-sidebar [data-exhibitor-view="${view}"]`);
+ activeLink?.closest('details')?.setAttribute('open', '');
 }
 
-async function openAdminEditor(view) {
+function buildOverview(main) {
+ if (main.querySelector('[data-exhibitor-overview]')) return;
+ const stats = [...main.querySelectorAll('.dash-stats article')];
+ const statValue = index => stats[index]?.querySelector('b')?.textContent?.trim() || '—';
+ const openCount = main.querySelectorAll('#feiras-abertas .open-edition-card').length;
+ const overview = document.createElement('section');
+ overview.className = 'dashboard-overview exhibitor-overview';
+ overview.dataset.exhibitorOverview = '';
+ overview.innerHTML = `<div class="overview-intro"><span class="eyebrow">Seu percurso no BECO</span><h2>Organize sua participação em um só lugar.</h2><p>Encontre oportunidades, acompanhe candidaturas e cuide do perfil que apresenta seu trabalho ao público.</p></div><div class="overview-edition"><span>Oportunidades abertas</span><strong>${openCount}</strong><small>${openCount===1?'edição disponível para inscrição':'edições disponíveis para inscrição'}</small><button type="button" class="btn btn-primary" data-exhibitor-view="opportunities">Ver oportunidades</button></div><div class="overview-actions"><button type="button" data-exhibitor-view="applications"><span>01</span><b>Minhas inscrições</b><small>${statValue(1)} candidatura(s) registrada(s)</small></button><button type="button" data-exhibitor-view="spaces"><span>02</span><b>Minha participação</b><small>${statValue(2)} participação(ões) confirmada(s)</small></button><button type="button" data-exhibitor-view="profile"><span>03</span><b>Dados do perfil</b><small>Cadastro ${statValue(0).toLowerCase()}</small></button><button type="button" data-exhibitor-view="portfolio"><span>04</span><b>Portfólio</b><small>Revise as imagens do seu trabalho</small></button></div>`;
+ stats[0]?.parentElement?.after(overview);
+}
+
+function applyView(view, { scroll = true } = {}) {
  const main = document.querySelector('.private-main');
- if (!main) return;
- if (observer) observer.disconnect();
- main.removeAttribute('data-home-editor');
- main.removeAttribute('data-about-editor');
- main.innerHTML = '<div class="editor-loading" role="status"><span class="data-spinner" aria-hidden="true"></span><p>Carregando área de edição…</p></div>';
- setActiveEditor(view);
- if (view === 'home') {
-  main.setAttribute('data-home-editor', '');
-  history.replaceState(null, '', '#editar-inicio');
-  const { initializeHomepageEditor } = await import('./controllers/homepage.controller.js');
-  await initializeHomepageEditor();
- } else {
-  main.setAttribute('data-about-editor', '');
-  history.replaceState(null, '', '#editar-sobre');
-  const { initializeAboutEditor } = await import('./controllers/about.controller.js');
-  await initializeAboutEditor();
+ if (!main?.querySelector('#feiras-abertas')) return;
+ currentView = views[view] ? view : 'overview';
+ const panelByView = { opportunities: 'feiras-abertas', applications: 'inscricoes', spaces: 'espacos', evaluations: 'avaliacoes', profile: 'perfil', portfolio: 'portfolio' };
+ main.dataset.exhibitorView = currentView;
+ main.querySelectorAll(':scope > .panel').forEach(panel => { panel.hidden = panel.id !== panelByView[currentView]; });
+ const overview = main.querySelector('[data-exhibitor-overview]');
+ if (overview) overview.hidden = currentView !== 'overview';
+ const stats = main.querySelector('.dash-stats');
+ if (stats) stats.hidden = currentView !== 'overview';
+ const heading = main.querySelector('.private-heading');
+ if (heading) {
+  const title = heading.querySelector('h1');
+  const description = heading.querySelector('p');
+  if (title) title.textContent = views[currentView].title;
+  if (description) description.textContent = views[currentView].description;
  }
- decoratePanels(main);
- window.scrollTo({ top: 0, behavior: 'smooth' });
+ setActiveView(currentView);
+ history.replaceState(null, '', currentView === 'overview' ? '#visao-geral' : `#${panelByView[currentView]}`);
+ if (scroll) window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
-function installAdminViewNavigation() {
+function installViewNavigation(main) {
  const sidebar = document.querySelector('.private-sidebar');
- if (!sidebar || sidebar.dataset.adminViews === 'ready') return;
- sidebar.dataset.adminViews = 'ready';
- sidebar.addEventListener('click', event => {
-  const link = event.target.closest('[data-admin-view]');
-  if (!link) return;
-  event.preventDefault();
-  openAdminEditor(link.dataset.adminView);
-  document.body.classList.remove('private-menu-open');
-  document.querySelector('.private-menu-toggle')?.setAttribute('aria-expanded', 'false');
- });
+ if (sidebar && sidebar.dataset.exhibitorViews !== 'ready') {
+  sidebar.dataset.exhibitorViews = 'ready';
+  sidebar.addEventListener('click', event => {
+   const link = event.target.closest('[data-exhibitor-view]');
+   if (!link) return;
+   event.preventDefault();
+   applyView(link.dataset.exhibitorView);
+   document.body.classList.remove('private-menu-open');
+   document.querySelector('.private-menu-toggle')?.setAttribute('aria-expanded', 'false');
+  });
+ }
+ if (main.dataset.exhibitorViews !== 'ready') {
+  main.dataset.exhibitorViews = 'ready';
+  main.addEventListener('click', event => {
+   const button = event.target.closest('[data-exhibitor-view]');
+   if (!button) return;
+   event.preventDefault();
+   applyView(button.dataset.exhibitorView);
+  });
+ }
 }
 
 function installMobileNavigation() {
@@ -152,21 +121,21 @@ function installBackToTop() {
  update();
 }
 
-export function enhanceDashboard(options={}) {
+export function enhanceDashboard() {
  const main = document.querySelector('.private-main');
  if (!main) return;
- if (options.restoreDashboard) restoreDashboard=options.restoreDashboard;
  decoratePanels(main);
- installScrollSpy(main);
- installSectionNavigation();
- installAdminViewNavigation();
+ buildOverview(main);
+ installViewNavigation(main);
  installMobileNavigation();
  installBackToTop();
+ applyView(currentView, { scroll: false });
  if (!contentObserver) {
   contentObserver = new MutationObserver(() => {
    if (!main.querySelector('.panel:not(.dashboard-panel)')) return;
    decoratePanels(main);
-   installScrollSpy(main);
+   buildOverview(main);
+   applyView(currentView, { scroll: false });
   });
   contentObserver.observe(main, { childList: true, subtree: true });
  }
