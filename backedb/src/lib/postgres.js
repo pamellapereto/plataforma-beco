@@ -132,7 +132,6 @@ export async function postgresRequest(path, { method = 'GET', body, headers = {}
     if (parts[2] === 'rpc') return rpc(parts[3], body);
     const table = identifier(parts[2]);
     const values = [];
-    const where = whereClause(url.searchParams, values);
     const returning = /return=representation/i.test(headers.Prefer || headers.prefer || '') ? ' RETURNING *' : '';
     let result;
     if (method === 'GET') {
@@ -140,6 +139,7 @@ export async function postgresRequest(path, { method = 'GET', body, headers = {}
         const related = await relatedApplicationSelect(url);
         if (related) return related;
       }
+      const where = whereClause(url.searchParams, values);
       const limit = url.searchParams.get('limit');
       const offset = url.searchParams.get('offset');
       const paging = `${limit ? ` LIMIT ${Math.max(0, Number(limit))}` : ''}${offset ? ` OFFSET ${Math.max(0, Number(offset))}` : ''}`;
@@ -159,12 +159,14 @@ export async function postgresRequest(path, { method = 'GET', body, headers = {}
       return result.rows;
     }
     if (method === 'PATCH') {
+      const where = whereClause(url.searchParams, values);
       const entries = Object.entries(body || {});
       const set = entries.map(([key, value]) => { values.push(value); return `${identifier(key)} = $${values.length}`; }).join(', ');
       result = await databasePool().query(`UPDATE public.${table} SET ${set}${where}${returning}`, values);
       return result.rows;
     }
     if (method === 'DELETE') {
+      const where = whereClause(url.searchParams, values);
       result = await databasePool().query(`DELETE FROM public.${table}${where}${returning}`, values);
       return result.rows;
     }

@@ -91,9 +91,15 @@ export class CurationService {
   async detail(applicationId, principal) {
     requireBecoAdmin(principal);
     const detail = await this.applications.detail(applicationId, principal);
+    const actorIds = [...new Set(detail.history.map((item) => item.actor_user_id).filter(Boolean))];
+    const actors = actorIds.length
+      ? await this.gateway.request(`rest/v1/app_users?select=id,full_name,email&id=in.(${actorIds.join(',')})`)
+      : [];
+    const actorById = new Map(actors.map((actor) => [actor.id, actor]));
+    const history = detail.history.map((item) => ({ ...item, actor: actorById.get(item.actor_user_id) || null }));
     const exhibitors = await this.gateway.request(`rest/v1/exhibitors?select=*&id=eq.${detail.application.exhibitor_id}&limit=1`);
     const exhibitor = exhibitors[0];
-    if (!exhibitor) return { ...detail, exhibitor: null };
+    if (!exhibitor) return { ...detail, history, exhibitor: null };
     const [users, categoryLinks] = await Promise.all([
       this.gateway.request(`rest/v1/app_users?select=id,email,full_name,is_active&id=eq.${exhibitor.user_id}&limit=1`),
       this.gateway.request(`rest/v1/exhibitor_category_links?select=category_id&exhibitor_id=eq.${exhibitor.id}`)
@@ -102,7 +108,7 @@ export class CurationService {
     const categories = categoryIds.length
       ? await this.gateway.request(`rest/v1/exhibitor_categories?select=id,name,slug&id=in.(${categoryIds.join(',')})`)
       : [];
-    return { ...detail, exhibitor: { ...exhibitor, account: users[0] || null, categories } };
+    return { ...detail, history, exhibitor: { ...exhibitor, account: users[0] || null, categories } };
   }
 
   async decide(applicationId, input, principal) {
@@ -215,6 +221,13 @@ export class CurationService {
       }
     });
     if (!rows[0]) throw new HttpError(404, 'EXCEPTION_REQUEST_NOT_FOUND', 'Pedido não encontrado.');
+    await this.applications.addHistory(
+      rows[0].application_id,
+      principal,
+      null,
+      `Pedido especial ${decision.status === 'APPROVED' ? 'aprovado' : 'recusado'} pela curadoria.${decision.note ? ` ${decision.note}` : ''}`,
+      true
+    );
     return rows[0];
   }
 

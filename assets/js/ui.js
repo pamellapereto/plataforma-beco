@@ -39,7 +39,7 @@ export function safeNext(role) {
   const next = new URLSearchParams(location.search).get('next');
   if (!next) return fallback;
   try { const url = new URL(next, location.href); const file = url.pathname.split('/').pop().replace(/\.html$/, '');
-    if (url.origin === location.origin && (role === 'EXHIBITOR' ? ['inscricao-expositor','area-expositor'].includes(file) : file === 'curadoria')) return url.pathname + url.search;
+    if (url.origin === location.origin && (role === 'EXHIBITOR' ? ['inscricao-expositor','area-expositor'].includes(file) : ['curadoria','analise-candidatura','personalizar-home','editar-sobre'].includes(file))) return url.pathname + url.search;
   } catch { /* use the role's default */ }
   return fallback;
 }
