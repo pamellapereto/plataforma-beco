@@ -40,7 +40,8 @@ export class ApiModel {
     let response;
     try { response = await fetch(`${this.baseUrl}${path}`, {
       method: options.method || 'GET', headers,
-      body: options.body === undefined ? undefined : JSON.stringify(options.body)
+      body: options.body === undefined ? undefined : JSON.stringify(options.body),
+      cache: options.cache || 'default'
     }); } catch { throw new ApiError('Não foi possível conectar. Confira sua conexão e tente novamente.', 0, 'NETWORK_ERROR'); }
     if (response.status === 401 && options.auth !== false && retry && session?.refreshToken && path !== '/auth/refresh') {
       try {
@@ -99,7 +100,7 @@ export class ApiModel {
   editionEvaluationSummary(slug) { return this.request(`/fair-editions/${encodeURIComponent(slug)}/evaluation-summary`, { auth: false }); }
   organizationEvaluationSummary(id) { return this.request(`/organizations/${encodeURIComponent(id)}/evaluation-summary`, { auth: false }); }
   curationDashboard() { return this.request('/curation/dashboard'); }
-  adminFairs() { return this.request('/admin/fairs'); }
+  adminFairs() { return this.request('/admin/fairs', { cache: 'no-store' }); }
   curationApplications(editionId) { return this.request(`/curation/fair-editions/${encodeURIComponent(editionId)}/applications`); }
   editionParticipation(editionId) { return this.request(`/curation/fair-editions/${encodeURIComponent(editionId)}/participation`); }
   recordAttendance(applicationId, body) { return this.request(`/curation/applications/${encodeURIComponent(applicationId)}/attendance`, { method: 'PUT', body }); }

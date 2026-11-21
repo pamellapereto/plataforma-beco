@@ -47,10 +47,13 @@ export function bindForm(form, submit) {
   form?.addEventListener('submit', event => { event.preventDefault(); if (form.reportValidity()) busy(form.querySelector('[type=submit]'), () => submit(readForm(form), form), form.querySelector('[data-feedback]')); });
 }
 export function openDialog(title, content) {
+  const previousOverflow = document.documentElement.style.overflow;
   const dialog = document.createElement('dialog'); dialog.className = 'workflow-dialog';
   dialog.innerHTML = `<div class="dialog-heading"><h2>${escapeHtml(title)}</h2><button type="button" data-close aria-label="Fechar">×</button></div><div data-dialog-body>${content}</div>`;
-  document.body.append(dialog); dialog.querySelector('[data-close]').onclick = () => dialog.close();
-  dialog.addEventListener('close',()=>dialog.remove()); dialog.addEventListener('click',e=>{if(e.target===dialog)dialog.close();}); dialog.showModal(); return dialog;
+  document.body.append(dialog);
+  document.documentElement.style.overflow = 'hidden';
+  dialog.querySelector('[data-close]').onclick = () => dialog.close();
+  dialog.addEventListener('close',()=>{dialog.remove();document.documentElement.style.overflow=previousOverflow;}); dialog.addEventListener('click',e=>{if(e.target===dialog)dialog.close();}); dialog.showModal(); return dialog;
 }
 export function downloadCsv(filename, rows) {
   const cell = value => `"${String(value ?? '').replace(/^[=+@-]/,"'$&").replaceAll('"','""')}"`;

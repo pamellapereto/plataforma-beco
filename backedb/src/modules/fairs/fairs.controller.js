@@ -27,6 +27,10 @@ export function createFairsController(service) {
       const [principal, body] = await Promise.all([requirePrincipal(request), readJson(request)]);
       apiView.resource(response, await service.updateFair(fairId, body, principal));
     },
+    async deleteFair(request, response, fairId) {
+      const principal = await requirePrincipal(request);
+      apiView.resource(response, await service.deleteFair(fairId, principal));
+    },
     async createEdition(request, response, fairId) {
       const [principal, body] = await Promise.all([requirePrincipal(request), readJson(request)]);
       apiView.resource(response, await service.createEdition(fairId, body, principal), 201);
@@ -35,9 +39,17 @@ export function createFairsController(service) {
       const [principal, body] = await Promise.all([requirePrincipal(request), readJson(request)]);
       apiView.resource(response, await service.updateEdition(editionId, body, principal));
     },
+    async deleteEdition(request, response, editionId) {
+      const principal = await requirePrincipal(request);
+      apiView.resource(response, await service.deleteEdition(editionId, principal));
+    },
     async updateLocation(request, response, locationId) {
       const [principal, body] = await Promise.all([requirePrincipal(request), readJson(request)]);
       apiView.resource(response, await service.updateLocation(locationId, body, principal));
+    },
+    async postalCode(request, response, postalCode) {
+      const principal = await requirePrincipal(request);
+      apiView.resource(response, await service.postalCode(postalCode, principal));
     }
   };
 }

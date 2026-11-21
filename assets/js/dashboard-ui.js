@@ -117,7 +117,7 @@ function buildDashboardOverview(main) {
  stats?.after(overview);
 }
 
-function applyDashboardView(view, { scroll = true } = {}) {
+function applyDashboardView(view) {
  const main = document.querySelector('.private-main');
  if (!main || !main.querySelector('#inscricoes')) return;
  currentDashboardView = dashboardViews[view] ? view : 'overview';
@@ -140,7 +140,6 @@ function applyDashboardView(view, { scroll = true } = {}) {
  }
  setActiveDashboardView(currentDashboardView);
  history.replaceState(null, '', currentDashboardView === 'overview' ? '#visao-geral' : `#${panelByView[currentDashboardView]}`);
- if (scroll) window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 function installScrollSpy(main) {
@@ -174,7 +173,6 @@ function installSectionNavigation() {
   setActiveLink(id);
   navigationLock = id;
   history.replaceState(null, '', `#${id}`);
-  target.scrollIntoView({ behavior: 'smooth', block: 'start' });
   window.setTimeout(() => { navigationLock = null; setActiveLink(id); }, 700);
  });
 }
@@ -236,7 +234,6 @@ async function openAdminEditor(view) {
   await initializeAboutEditor();
  }
  decoratePanels(main);
- window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 function installAdminViewNavigation() {
@@ -307,10 +304,10 @@ export function enhanceDashboard(options={}) {
    decorateEditionWorkspace(main);
    decorateFairEditions(main);
    buildDashboardOverview(main);
-   if (document.querySelector('[data-dashboard-view]')) applyDashboardView(currentDashboardView,{scroll:false});
+   if (document.querySelector('[data-dashboard-view]')) applyDashboardView(currentDashboardView);
    else installScrollSpy(main);
   });
   contentObserver.observe(main, { childList: true, subtree: true });
  }
- if (document.querySelector('[data-dashboard-view]')) applyDashboardView(currentDashboardView,{scroll:false});
+ if (document.querySelector('[data-dashboard-view]')) applyDashboardView(currentDashboardView);
 }

@@ -35,6 +35,22 @@ export class FairsService {
     this.gateway = gateway;
   }
 
+  async postalCode(value, principal) {
+    requireBecoAdmin(principal);
+    const postalCode = String(value || '').replace(/\D/g, '');
+    if (postalCode.length !== 8) throw new HttpError(422, 'INVALID_POSTAL_CODE', 'CEP deve possuir oito dígitos.');
+    let response;
+    try {
+      response = await fetch(`https://viacep.com.br/ws/${postalCode}/json/`, { signal: AbortSignal.timeout(5000) });
+    } catch {
+      throw new HttpError(502, 'POSTAL_CODE_SERVICE_ERROR', 'Não foi possível consultar o CEP. Preencha o endereço manualmente.');
+    }
+    if (!response.ok) throw new HttpError(502, 'POSTAL_CODE_SERVICE_ERROR', 'Não foi possível consultar o CEP. Preencha o endereço manualmente.');
+    const data = await response.json();
+    if (data.erro) throw new HttpError(404, 'POSTAL_CODE_NOT_FOUND', 'CEP não encontrado. Preencha o endereço manualmente.');
+    return { postalCode, addressLine: data.logradouro || '', complement: data.complemento || '', neighborhood: data.bairro || '', city: data.localidade || '', state: data.uf || '' };
+  }
+
   async categories() {
     return this.gateway.request('rest/v1/fair_categories?select=id,parent_id,name,slug&is_active=eq.true&order=name.asc');
   }
@@ -93,7 +109,7 @@ export class FairsService {
     let editions = await this.gateway.request(`rest/v1/fair_editions?select=id,fair_id,location_id,title,slug,edition_number,public_description,starts_at,ends_at,registration_opens_at,registration_closes_at,exhibitor_capacity,status&fair_id=in.(${idsFilter(fairIds)})${statusFilter}&order=starts_at.desc`);
     const locationIds = [...new Set(editions.map((edition) => edition.location_id))];
     const locations = locationIds.length
-      ? await this.gateway.request(`rest/v1/locations?select=id,name,address_line,complement,neighborhood,city,state,postal_code,maps_url,latitude,longitude&id=in.(${idsFilter(locationIds)})`)
+      ? await this.gateway.request(`rest/v1/locations?select=id,name,address_line,address_number,complement,neighborhood,city,state,postal_code,maps_url,latitude,longitude&id=in.(${idsFilter(locationIds)})`)
       : [];
     const locationById = new Map(locations.map((location) => [location.id, location]));
     if (city) editions = editions.filter((edition) => locationById.get(edition.location_id)?.city.toLowerCase() === city.trim().toLowerCase());
@@ -220,6 +236,48 @@ export class FairsService {
     return fair;
   }
 
+  async deletionAssets(editionIds) {
+    if (!editionIds.length) return [];
+    const editionLinks = await this.gateway.request(`rest/v1/fair_edition_media?select=media_asset_id&fair_edition_id=in.(${idsFilter(editionIds)})`);
+    const applications = await this.gateway.request(`rest/v1/applications?select=id&fair_edition_id=in.(${idsFilter(editionIds)})`);
+    const applicationIds = applications.map((item) => item.id);
+    const applicationLinks = applicationIds.length
+      ? await this.gateway.request(`rest/v1/application_media?select=media_asset_id&application_id=in.(${idsFilter(applicationIds)})`)
+      : [];
+    const assetIds = [...new Set([...editionLinks, ...applicationLinks].map((item) => item.media_asset_id))];
+    return assetIds.length
+      ? this.gateway.request(`rest/v1/media_assets?select=id,storage_bucket,object_path&id=in.(${idsFilter(assetIds)})`)
+      : [];
+  }
+
+  async removeDeletedAssets(assets) {
+    if (!assets.length) return;
+    await this.gateway.request(`rest/v1/media_assets?id=in.(${idsFilter(assets.map((item) => item.id))})`, { method: 'DELETE' });
+    const byBucket = new Map();
+    for (const asset of assets) {
+      if (!byBucket.has(asset.storage_bucket)) byBucket.set(asset.storage_bucket, []);
+      byBucket.get(asset.storage_bucket).push(asset.object_path);
+    }
+    await Promise.all([...byBucket].map(([bucket, paths]) => this.gateway.deleteStorageObjects(bucket, paths).catch(() => undefined)));
+  }
+
+  async deleteFair(fairId, principal) {
+    requireBecoAdmin(principal);
+    validateUuid(fairId, 'Feira');
+    const fairs = await this.gateway.request(`rest/v1/fairs?select=id,name&id=eq.${fairId}&organization_id=eq.${principal.organizationId}&limit=1`);
+    if (!fairs[0]) throw new HttpError(404, 'FAIR_NOT_FOUND', 'Feira não encontrada.');
+    const editions = await this.gateway.request(`rest/v1/fair_editions?select=id,location_id&fair_id=eq.${fairId}`);
+    const assets = await this.deletionAssets(editions.map((item) => item.id));
+    await this.gateway.request(`rest/v1/fairs?id=eq.${fairId}`, { method: 'DELETE' });
+    await this.removeDeletedAssets(assets);
+    const locationIds = [...new Set(editions.map((item) => item.location_id).filter(Boolean))];
+    for (const locationId of locationIds) {
+      const references = await this.gateway.request(`rest/v1/fair_editions?select=id&location_id=eq.${locationId}&limit=1`);
+      if (!references[0]) await this.gateway.request(`rest/v1/locations?id=eq.${locationId}`, { method: 'DELETE' });
+    }
+    return { deleted: true, id: fairId };
+  }
+
   async createEdition(fairId, input, principal) {
     requireBecoAdmin(principal);
     validateUuid(fairId, 'Feira');
@@ -266,6 +324,24 @@ export class FairsService {
       method: 'PATCH', headers: { Prefer: 'return=representation' }, body: { ...patch, updated_at: new Date().toISOString() }
     });
     return rows[0];
+  }
+
+  async deleteEdition(editionId, principal) {
+    requireBecoAdmin(principal);
+    validateUuid(editionId, 'Edição');
+    const editions = await this.gateway.request(`rest/v1/fair_editions?select=id,fair_id,location_id&id=eq.${editionId}&limit=1`);
+    const edition = editions[0];
+    if (!edition) throw new HttpError(404, 'FAIR_EDITION_NOT_FOUND', 'Edição não encontrada.');
+    const fairs = await this.gateway.request(`rest/v1/fairs?select=id&id=eq.${edition.fair_id}&organization_id=eq.${principal.organizationId}&limit=1`);
+    if (!fairs[0]) throw new HttpError(404, 'FAIR_EDITION_NOT_FOUND', 'Edição não encontrada.');
+    const assets = await this.deletionAssets([editionId]);
+    await this.gateway.request(`rest/v1/fair_editions?id=eq.${editionId}`, { method: 'DELETE' });
+    await this.removeDeletedAssets(assets);
+    if (edition.location_id) {
+      const references = await this.gateway.request(`rest/v1/fair_editions?select=id&location_id=eq.${edition.location_id}&limit=1`);
+      if (!references[0]) await this.gateway.request(`rest/v1/locations?id=eq.${edition.location_id}`, { method: 'DELETE' });
+    }
+    return { deleted: true, id: editionId };
   }
 
   async updateLocation(locationId, input, principal) {
