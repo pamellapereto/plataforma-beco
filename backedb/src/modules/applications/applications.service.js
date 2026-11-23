@@ -139,7 +139,7 @@ export class ApplicationsService {
     if (submittedAnswers.some((answer) => answer.value === null || answer.value === undefined)) {
       throw new HttpError(422, 'INVALID_ANSWER_VALUE', 'A resposta de uma pergunta não pode ser nula.');
     }
-    const form = await this.forms.getByEdition(application.fair_edition_id, { allowUnpublished: true });
+    const form = await this.forms.getById(application.registration_form_id, application.fair_edition_id);
     const allFields = form.sections.flatMap((section) => section.fields);
     const allFieldById = new Map(allFields.map((field) => [field.id, field]));
     const fieldIds = submittedAnswers.map((answer) => answer.fieldId);
@@ -178,10 +178,10 @@ export class ApplicationsService {
     if (application.status === 'DRAFT') await this.forms.getForApplicant(application.fair_edition_id, principal);
     else {
       await this.exhibitorFor(principal, true);
-      await this.forms.getByEdition(application.fair_edition_id, { allowUnpublished: true });
+      await this.forms.getById(application.registration_form_id, application.fair_edition_id);
     }
     const acceptedConsentKeys = new Set(validateConsents(input));
-    const form = await this.forms.getByEdition(application.fair_edition_id);
+    const form = await this.forms.getById(application.registration_form_id, application.fair_edition_id);
     const requiredConsents = Array.isArray(form.required_consents) ? form.required_consents : [];
     const officialConsentKeys = new Set(requiredConsents.map((consent) => consent.key));
     if (requiredConsents.some((consent) => !acceptedConsentKeys.has(consent.key)) || [...acceptedConsentKeys].some((key) => !officialConsentKeys.has(key))) {
@@ -263,8 +263,12 @@ export class ApplicationsService {
 
   async detail(applicationId, principal) {
     const application = await this.applicationAccess(applicationId, principal);
+    const availableForm = this.forms.getById(application.registration_form_id, application.fair_edition_id).catch((error) => {
+      if (error.code === 'FORM_NOT_FOUND') return null;
+      throw error;
+    });
     const [form, answers, consents, exceptionRequests, history, media] = await Promise.all([
-      this.forms.getByEdition(application.fair_edition_id, { allowUnpublished: true }),
+      availableForm,
       this.gateway.request(`rest/v1/application_answers?select=field_id,value_json,updated_at&application_id=eq.${applicationId}`),
       this.gateway.request(`rest/v1/application_consents?select=consent_key,consent_text,accepted_at&application_id=eq.${applicationId}`),
       this.gateway.request(`rest/v1/application_exception_requests?select=*&application_id=eq.${applicationId}`),

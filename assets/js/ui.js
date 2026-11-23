@@ -40,8 +40,8 @@ export function protectUnsavedNavigation(form,message='Existem alterações que 
   document.addEventListener('click',event=>{
     const link=event.target.closest('a[href]');
     if(!link||link.target==='_blank'||!state.hasUnsavedChanges)return;
+    if(confirm(message)){state.markSaved();return;}
     event.preventDefault();event.stopImmediatePropagation();
-    confirm(message);
   },true);
   return state;
 }
