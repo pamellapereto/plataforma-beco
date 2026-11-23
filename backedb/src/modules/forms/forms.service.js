@@ -24,7 +24,7 @@ export class FormsService {
     validateUuid(editionId, 'Edição');
     const forms = await this.gateway.request(`rest/v1/registration_forms?select=id,fair_edition_id,title,introduction,required_consents,version,is_published,created_at,updated_at&fair_edition_id=eq.${editionId}&limit=1`);
     const form = forms[0];
-    if (!form || (!allowUnpublished && !form.is_published)) throw new HttpError(404, 'FORM_NOT_FOUND', 'Formulário não encontrado.');
+    if (!form) throw new HttpError(404, 'FORM_NOT_FOUND', 'Formulário não encontrado.');
     const sections = await this.gateway.request(`rest/v1/registration_form_sections?select=id,title,description,position&form_id=eq.${form.id}&order=position.asc`);
     const sectionIds = sections.map((section) => section.id);
     const fields = sectionIds.length
@@ -60,7 +60,9 @@ export class FormsService {
     const editions = await this.gateway.request(`rest/v1/fair_editions?select=id,status,ends_at,registration_opens_at,registration_closes_at&id=eq.${editionId}&limit=1`);
     const edition = editions[0];
     const now = Date.now();
-    if (!edition || new Date(edition.ends_at).getTime() <= now || edition.status !== 'REGISTRATION_OPEN' || (edition.registration_opens_at && now < new Date(edition.registration_opens_at).getTime()) || (edition.registration_closes_at && now > new Date(edition.registration_closes_at).getTime())) {
+    const opensAt = new Date(edition?.registration_opens_at).getTime();
+    const closesAt = new Date(edition?.registration_closes_at).getTime();
+    if (!edition || edition.status !== 'PUBLISHED' || !Number.isFinite(opensAt) || !Number.isFinite(closesAt) || now < opensAt || now > closesAt) {
       throw new HttpError(409, 'REGISTRATION_CLOSED', 'As inscrições desta edição não estão abertas.');
     }
     return this.getByEdition(editionId);
@@ -71,7 +73,7 @@ export class FormsService {
     if (!['DRAFT', 'PUBLISHED'].includes(edition.status)) {
       throw new HttpError(409, 'FORM_LOCKED', 'O formulário não pode ser alterado depois da abertura das inscrições.');
     }
-    const definition = validateFormDefinition(input);
+    const definition = validateFormDefinition({ ...input, title: `Inscrições para expositores - ${edition.title}` });
     const result = await this.gateway.request('rest/v1/rpc/replace_registration_form', {
       method: 'POST', body: {
         p_fair_edition_id: editionId,
@@ -81,5 +83,35 @@ export class FormsService {
     });
     const formId = Array.isArray(result) ? result[0] : result;
     return { id: formId, ...(await this.getByEdition(editionId, { allowUnpublished: true })) };
+  }
+
+  async publicationIssues(editionId) {
+    let form;
+    try {
+      form = await this.getByEdition(editionId, { allowUnpublished: true });
+    } catch (error) {
+      if (error.code === 'FORM_NOT_FOUND') return ['Crie e salve o formulário de inscrição.'];
+      throw error;
+    }
+    const issues = [];
+    if (!String(form.title || '').trim()) issues.push('Informe o título do formulário.');
+    if (!Array.isArray(form.required_consents) || !form.required_consents.length) issues.push('Adicione ao menos um compromisso obrigatório.');
+    if (!form.sections?.length) issues.push('Adicione ao menos uma seção.');
+    for (const [sectionIndex, section] of (form.sections || []).entries()) {
+      if (!String(section.title || '').trim()) issues.push(`Informe o título da seção ${sectionIndex + 1}.`);
+      if (!section.fields?.length) issues.push(`Adicione ao menos uma pergunta à seção ${sectionIndex + 1}.`);
+      for (const field of section.fields || []) {
+        if (!String(field.label || '').trim()) issues.push(`Complete uma pergunta da seção ${sectionIndex + 1}.`);
+        if (['SELECT', 'MULTISELECT', 'RADIO'].includes(field.type) && (field.options || []).length < 2) {
+          issues.push(`A pergunta “${field.label || 'sem título'}” precisa de ao menos duas opções.`);
+        }
+      }
+    }
+    return issues;
+  }
+
+  async assertReadyForPublication(editionId) {
+    const issues = await this.publicationIssues(editionId);
+    if (issues.length) throw new HttpError(409, 'FORM_INCOMPLETE', `Não foi possível publicar a edição. Pendências do formulário: ${issues.join(' ')}`);
   }
 }

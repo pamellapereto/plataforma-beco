@@ -19,7 +19,7 @@ export async function initializeAuth(page) {
   }
   const registerLink=document.querySelector('[data-register-link]');
   if(registerLink)registerLink.href=`cadastro-expositor.html${location.search}`;
-  const requiredRole = ['curation-dashboard','home-editor','about-editor'].includes(page) ? 'BECO_ADMIN' : ['exhibitor-dashboard','application'].includes(page) ? 'EXHIBITOR' : null;
+  const requiredRole = ['curation-dashboard','curation-application','home-editor','about-editor'].includes(page) ? 'BECO_ADMIN' : ['exhibitor-dashboard','application'].includes(page) ? 'EXHIBITOR' : null;
   let session = api.session();
   if (requiredRole) {
     if (!session) { location.replace(`login.html?next=${encodeURIComponent(location.pathname + location.search)}`); return false; }
@@ -35,6 +35,11 @@ export async function initializeAuth(page) {
   }
   const link = document.querySelector('.header-actions a[href="login.html"]');
   if (link && session?.account) { link.textContent = 'Minha área'; link.href = session.account.role === 'BECO_ADMIN' ? 'curadoria.html' : 'area-expositor.html'; }
+  if (session?.account?.role === 'BECO_ADMIN') {
+    document.querySelectorAll('.header-actions a[href^="inscricao-expositor.html"]').forEach(action => {
+      if (action.textContent.trim().toLocaleLowerCase('pt-BR') === 'quero expor') action.remove();
+    });
+  }
   const sidebar = document.querySelector('.private-sidebar');
   if (sidebar && session) {
     const button=document.createElement('button');button.className='private-logout';button.textContent='Sair';button.type='button';

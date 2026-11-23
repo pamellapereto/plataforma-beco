@@ -31,15 +31,32 @@ export function trackUnsavedChanges(form) {
   window.addEventListener('beforeunload', warn);
   return {
     get revision() { return revision; },
+    get hasUnsavedChanges() { return revision !== savedRevision; },
     markSaved(value = revision) { savedRevision = value; },
   };
+}
+export function protectUnsavedNavigation(form,message='Existem alterações que ainda não foram salvas. Deseja sair sem salvar?'){
+  const state=trackUnsavedChanges(form);
+  document.addEventListener('click',event=>{
+    const link=event.target.closest('a[href]');
+    if(!link||link.target==='_blank'||!state.hasUnsavedChanges)return;
+    event.preventDefault();event.stopImmediatePropagation();
+    confirm(message);
+  },true);
+  return state;
+}
+export function mountAdminSidebar(activePage){
+  const sidebar=document.querySelector('.private-sidebar');if(!sidebar)return;
+  sidebar.setAttribute('aria-label','Navegação da administração');
+  sidebar.innerHTML=`<a class="brand" href="index.html"><span class="brand-symbol">B</span><span>BECO<br>memória viva</span></a><span class="private-nav-label">Painel</span><a href="curadoria.html#visao-geral">Visão geral</a><details class="private-nav-group"><summary>Feiras e edições</summary><div class="private-nav-submenu"><a href="curadoria.html#feiras">Gestão de feiras</a><a href="curadoria.html#inscricoes">Inscrições e curadoria</a><a href="curadoria.html#espacos">Espaços da edição</a><a href="curadoria.html#presencas">Presença e avaliações</a></div></details><a href="curadoria.html#expositores">Expositores</a><span class="private-nav-label">Conteúdo</span><details class="private-nav-group" open><summary>Edição de páginas</summary><div class="private-nav-submenu"><a href="personalizar-home.html" ${activePage==='home'?'class="active" aria-current="page"':''}>Seção Início</a><a href="editar-sobre.html" ${activePage==='about'?'class="active" aria-current="page"':''}>Seção Sobre</a></div></details><span class="private-nav-label">Site</span><a href="index.html">Ir para o site</a>`;
+  if(!document.querySelector('.private-menu-toggle')){const button=document.createElement('button');button.type='button';button.className='private-menu-toggle';button.setAttribute('aria-controls','private-navigation');button.setAttribute('aria-expanded','false');button.innerHTML='<span aria-hidden="true">☰</span><span>Menu</span>';sidebar.id='private-navigation';document.body.prepend(button);button.onclick=()=>{const open=document.body.classList.toggle('private-menu-open');button.setAttribute('aria-expanded',String(open));};sidebar.addEventListener('click',event=>{if(event.target.closest('a')){document.body.classList.remove('private-menu-open');button.setAttribute('aria-expanded','false');}});}
 }
 export function safeNext(role) {
   const fallback = role === 'BECO_ADMIN' ? 'curadoria.html' : 'area-expositor.html';
   const next = new URLSearchParams(location.search).get('next');
   if (!next) return fallback;
   try { const url = new URL(next, location.href); const file = url.pathname.split('/').pop().replace(/\.html$/, '');
-    if (url.origin === location.origin && (role === 'EXHIBITOR' ? ['inscricao-expositor','area-expositor'].includes(file) : file === 'curadoria')) return url.pathname + url.search;
+    if (url.origin === location.origin && (role === 'EXHIBITOR' ? ['inscricao-expositor','area-expositor'].includes(file) : ['curadoria','analise-candidatura','personalizar-home','editar-sobre'].includes(file))) return url.pathname + url.search;
   } catch { /* use the role's default */ }
   return fallback;
 }
@@ -47,10 +64,16 @@ export function bindForm(form, submit) {
   form?.addEventListener('submit', event => { event.preventDefault(); if (form.reportValidity()) busy(form.querySelector('[type=submit]'), () => submit(readForm(form), form), form.querySelector('[data-feedback]')); });
 }
 export function openDialog(title, content) {
+  const previousOverflow = document.documentElement.style.overflow;
   const dialog = document.createElement('dialog'); dialog.className = 'workflow-dialog';
   dialog.innerHTML = `<div class="dialog-heading"><h2>${escapeHtml(title)}</h2><button type="button" data-close aria-label="Fechar">×</button></div><div data-dialog-body>${content}</div>`;
-  document.body.append(dialog); dialog.querySelector('[data-close]').onclick = () => dialog.close();
-  dialog.addEventListener('close',()=>dialog.remove()); dialog.addEventListener('click',e=>{if(e.target===dialog)dialog.close();}); dialog.showModal(); return dialog;
+  document.body.append(dialog);
+  document.documentElement.style.overflow = 'hidden';
+  const requestClose=()=>{if(typeof dialog.beforeWorkflowClose==='function'&&!dialog.beforeWorkflowClose())return;dialog.close();};
+  dialog.requestWorkflowClose=requestClose;
+  dialog.querySelector('[data-close]').onclick = requestClose;
+  dialog.addEventListener('cancel',event=>{event.preventDefault();requestClose();});
+  dialog.addEventListener('close',()=>{dialog.remove();document.documentElement.style.overflow=previousOverflow;}); dialog.addEventListener('click',e=>{if(e.target===dialog)requestClose();}); dialog.showModal(); return dialog;
 }
 export function downloadCsv(filename, rows) {
   const cell = value => `"${String(value ?? '').replace(/^[=+@-]/,"'$&").replaceAll('"','""')}"`;

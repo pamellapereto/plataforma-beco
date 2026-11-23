@@ -42,6 +42,12 @@ function selectedColumns(raw) {
 
 function decode(value) { return decodeURIComponent(String(value).replace(/\+/g, ' ')); }
 
+const jsonValueKeys = new Set(['history_paragraphs', 'facts', 'required_consents', 'validation', 'conditional_logic', 'value_json', 'social_links', 'checks', 'p_definition', 'p_consents']);
+function databaseValue(key, value) {
+  if (value !== null && value !== undefined && jsonValueKeys.has(key) && typeof value === 'object') return JSON.stringify(value);
+  return value;
+}
+
 function whereClause(params, values) {
   const clauses = [];
   const ignored = new Set(['select', 'order', 'limit', 'offset', 'on_conflict']);
@@ -132,7 +138,6 @@ export async function postgresRequest(path, { method = 'GET', body, headers = {}
     if (parts[2] === 'rpc') return rpc(parts[3], body);
     const table = identifier(parts[2]);
     const values = [];
-    const where = whereClause(url.searchParams, values);
     const returning = /return=representation/i.test(headers.Prefer || headers.prefer || '') ? ' RETURNING *' : '';
     let result;
     if (method === 'GET') {
@@ -140,6 +145,7 @@ export async function postgresRequest(path, { method = 'GET', body, headers = {}
         const related = await relatedApplicationSelect(url);
         if (related) return related;
       }
+      const where = whereClause(url.searchParams, values);
       const limit = url.searchParams.get('limit');
       const offset = url.searchParams.get('offset');
       const paging = `${limit ? ` LIMIT ${Math.max(0, Number(limit))}` : ''}${offset ? ` OFFSET ${Math.max(0, Number(offset))}` : ''}`;
@@ -151,7 +157,7 @@ export async function postgresRequest(path, { method = 'GET', body, headers = {}
       if (!rows.length) return [];
       const columns = [...new Set(rows.flatMap(Object.keys))];
       const insertValues = [];
-      const tuples = rows.map(row => `(${columns.map(column => { insertValues.push(row[column] ?? null); return `$${insertValues.length}`; }).join(', ')})`);
+      const tuples = rows.map(row => `(${columns.map(column => { insertValues.push(databaseValue(column, row[column] ?? null)); return `$${insertValues.length}`; }).join(', ')})`);
       const conflict = url.searchParams.get('on_conflict');
       const updateColumns = conflict ? columns.filter(c => !conflict.split(',').includes(c)) : [];
       const conflictSql = conflict ? ` ON CONFLICT (${conflict.split(',').map(identifier).join(', ')}) ${updateColumns.length ? `DO UPDATE SET ${updateColumns.map(c => `${identifier(c)}=EXCLUDED.${identifier(c)}`).join(', ')}` : 'DO NOTHING'}` : '';
@@ -159,12 +165,14 @@ export async function postgresRequest(path, { method = 'GET', body, headers = {}
       return result.rows;
     }
     if (method === 'PATCH') {
+      const where = whereClause(url.searchParams, values);
       const entries = Object.entries(body || {});
-      const set = entries.map(([key, value]) => { values.push(value); return `${identifier(key)} = $${values.length}`; }).join(', ');
+      const set = entries.map(([key, value]) => { values.push(databaseValue(key, value)); return `${identifier(key)} = $${values.length}`; }).join(', ');
       result = await databasePool().query(`UPDATE public.${table} SET ${set}${where}${returning}`, values);
       return result.rows;
     }
     if (method === 'DELETE') {
+      const where = whereClause(url.searchParams, values);
       result = await databasePool().query(`DELETE FROM public.${table}${where}${returning}`, values);
       return result.rows;
     }

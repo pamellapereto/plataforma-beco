@@ -1,3 +1,5 @@
+import { openDialog } from './ui.js';
+
 let observer;
 let contentObserver;
 let navigationLock;
@@ -101,6 +103,8 @@ function decorateFairEditions(main) {
   button.type = 'button';
   button.className = 'btn btn-small btn-primary';
   button.dataset.openEdition = editButton.dataset.editEdition;
+  button.dataset.editionStatus = editButton.dataset.editionStatus || '';
+  button.dataset.editionSlug = editButton.dataset.editionSlug || '';
   button.textContent = 'Abrir painel da edição';
   editionCard.querySelector('.hero-actions')?.prepend(button);
  });
@@ -117,7 +121,7 @@ function buildDashboardOverview(main) {
  stats?.after(overview);
 }
 
-function applyDashboardView(view, { scroll = true } = {}) {
+function applyDashboardView(view) {
  const main = document.querySelector('.private-main');
  if (!main || !main.querySelector('#inscricoes')) return;
  currentDashboardView = dashboardViews[view] ? view : 'overview';
@@ -140,7 +144,6 @@ function applyDashboardView(view, { scroll = true } = {}) {
  }
  setActiveDashboardView(currentDashboardView);
  history.replaceState(null, '', currentDashboardView === 'overview' ? '#visao-geral' : `#${panelByView[currentDashboardView]}`);
- if (scroll) window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 function installScrollSpy(main) {
@@ -174,7 +177,6 @@ function installSectionNavigation() {
   setActiveLink(id);
   navigationLock = id;
   history.replaceState(null, '', `#${id}`);
-  target.scrollIntoView({ behavior: 'smooth', block: 'start' });
   window.setTimeout(() => { navigationLock = null; setActiveLink(id); }, 700);
  });
 }
@@ -207,11 +209,17 @@ function installDashboardViewNavigation() {
    if (viewButton) { event.preventDefault(); openDashboardView(viewButton.dataset.dashboardView); return; }
    const editionButton = event.target.closest('[data-open-edition]');
    if (!editionButton) return;
-   const select = main.querySelector('[data-edition]');
-   if (!select) return;
-   currentDashboardView = 'applications';
-   select.value = editionButton.dataset.openEdition;
-   select.dispatchEvent(new Event('change', { bubbles: true }));
+   event.preventDefault();
+   event.stopPropagation();
+   if (editionButton.dataset.editionStatus === 'DRAFT' || editionButton.dataset.editionStatus === 'CANCELLED') {
+    openDialog('Edição em rascunho', '<p>Esta edição ainda não foi publicada.</p><p>Para visualizar o painel público desta edição e suas informações, é necessário publicá-la primeiro.</p><p>Enquanto estiver em rascunho, a edição permanecerá disponível apenas para gerenciamento pela organização.</p>');
+    return;
+   }
+   const slug = editionButton.dataset.editionSlug;
+   if (!slug) return;
+   const target = new URL('feira-beco.html', document.baseURI);
+   target.searchParams.set('edicao', slug);
+   window.open(target.href, '_blank', 'noopener,noreferrer');
   });
  }
 }
@@ -236,21 +244,12 @@ async function openAdminEditor(view) {
   await initializeAboutEditor();
  }
  decoratePanels(main);
- window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 function installAdminViewNavigation() {
  const sidebar = document.querySelector('.private-sidebar');
- if (!sidebar || sidebar.dataset.adminViews === 'ready') return;
- sidebar.dataset.adminViews = 'ready';
- sidebar.addEventListener('click', event => {
-  const link = event.target.closest('[data-admin-view]');
-  if (!link) return;
-  event.preventDefault();
-  openAdminEditor(link.dataset.adminView);
-  document.body.classList.remove('private-menu-open');
-  document.querySelector('.private-menu-toggle')?.setAttribute('aria-expanded', 'false');
- });
+ if (!sidebar) return;
+ sidebar.querySelectorAll('[data-admin-view]').forEach(link=>link.removeAttribute('data-admin-view'));
 }
 
 function installMobileNavigation() {
@@ -307,10 +306,10 @@ export function enhanceDashboard(options={}) {
    decorateEditionWorkspace(main);
    decorateFairEditions(main);
    buildDashboardOverview(main);
-   if (document.querySelector('[data-dashboard-view]')) applyDashboardView(currentDashboardView,{scroll:false});
+   if (document.querySelector('[data-dashboard-view]')) applyDashboardView(currentDashboardView);
    else installScrollSpy(main);
   });
   contentObserver.observe(main, { childList: true, subtree: true });
  }
- if (document.querySelector('[data-dashboard-view]')) applyDashboardView(currentDashboardView,{scroll:false});
+ if (document.querySelector('[data-dashboard-view]')) applyDashboardView(currentDashboardView);
 }

@@ -40,7 +40,8 @@ export class ApiModel {
     let response;
     try { response = await fetch(`${this.baseUrl}${path}`, {
       method: options.method || 'GET', headers,
-      body: options.body === undefined ? undefined : JSON.stringify(options.body)
+      body: options.body === undefined ? undefined : JSON.stringify(options.body),
+      cache: options.cache || 'default'
     }); } catch { throw new ApiError('Não foi possível conectar. Confira sua conexão e tente novamente.', 0, 'NETWORK_ERROR'); }
     if (response.status === 401 && options.auth !== false && retry && session?.refreshToken && path !== '/auth/refresh') {
       try {
@@ -63,12 +64,12 @@ export class ApiModel {
     return this.request(path, { method: 'POST', body: { ...metadata, objectPath: signed.objectPath } });
   }
 
-  fairs(city) { return this.request(`/fairs${city ? `?city=${encodeURIComponent(city)}` : ''}`, { auth: false }); }
-  homepage() { return this.request('/homepage', { auth: false }); }
-  about() { return this.request('/about', { auth: false }); }
-  adminHomepage() { return this.request('/admin/homepage'); }
+  fairs(city) { return this.request(`/fairs${city ? `?city=${encodeURIComponent(city)}` : ''}`, { auth: false, cache: 'no-store' }); }
+  homepage() { return this.request('/homepage', { auth: false, cache: 'no-store' }); }
+  about() { return this.request('/about', { auth: false, cache: 'no-store' }); }
+  adminHomepage() { return this.request('/admin/homepage', { cache: 'no-store' }); }
   saveHomepage(body) { return this.request('/admin/homepage', { method: 'PUT', body }); }
-  adminAbout() { return this.request('/admin/about'); }
+  adminAbout() { return this.request('/admin/about', { cache: 'no-store' }); }
   saveAbout(body) { return this.request('/admin/about', { method: 'PUT', body }); }
   async openEditions(now = new Date()) {
     const timestamp = now instanceof Date ? now.getTime() : new Date(now).getTime();
@@ -79,14 +80,13 @@ export class ApiModel {
     }))).filter(edition => {
       const opensAt = edition.registration_opens_at ? new Date(edition.registration_opens_at).getTime() : null;
       const closesAt = edition.registration_closes_at ? new Date(edition.registration_closes_at).getTime() : null;
-      const endsAt = new Date(edition.ends_at).getTime();
-      return edition.status === 'REGISTRATION_OPEN'
-        && Number.isFinite(endsAt) && endsAt > timestamp
+      return edition.status === 'PUBLISHED'
+        && edition.registration_status === 'OPEN'
         && (opensAt === null || (Number.isFinite(opensAt) && opensAt <= timestamp))
         && (closesAt === null || (Number.isFinite(closesAt) && closesAt >= timestamp));
     }).sort((left, right) => new Date(left.registration_closes_at || left.starts_at) - new Date(right.registration_closes_at || right.starts_at));
   }
-  fair(slug) { return this.request(`/fair-editions/${encodeURIComponent(slug)}`, { auth: false }); }
+  fair(slug) { return this.request(`/fair-editions/${encodeURIComponent(slug)}`, { auth: false, cache: 'no-store' }); }
   exhibitors(city) { return this.request(`/exhibitors${city ? `?city=${encodeURIComponent(city)}` : ''}`, { auth: false }); }
   exhibitor(id) { return this.request(`/exhibitors/${encodeURIComponent(id)}`, { auth: false }); }
   exhibitorCategories() { return this.request('/exhibitor-categories', { auth: false }); }
@@ -99,7 +99,7 @@ export class ApiModel {
   editionEvaluationSummary(slug) { return this.request(`/fair-editions/${encodeURIComponent(slug)}/evaluation-summary`, { auth: false }); }
   organizationEvaluationSummary(id) { return this.request(`/organizations/${encodeURIComponent(id)}/evaluation-summary`, { auth: false }); }
   curationDashboard() { return this.request('/curation/dashboard'); }
-  adminFairs() { return this.request('/admin/fairs'); }
+  adminFairs() { return this.request('/admin/fairs', { cache: 'no-store' }); }
   curationApplications(editionId) { return this.request(`/curation/fair-editions/${encodeURIComponent(editionId)}/applications`); }
   editionParticipation(editionId) { return this.request(`/curation/fair-editions/${encodeURIComponent(editionId)}/participation`); }
   recordAttendance(applicationId, body) { return this.request(`/curation/applications/${encodeURIComponent(applicationId)}/attendance`, { method: 'PUT', body }); }

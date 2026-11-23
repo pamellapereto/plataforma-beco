@@ -110,7 +110,7 @@ async function seed() {
     {
       slug: 'beco-do-inferno', name: 'Feira Beco do Inferno', short: 'Arte autoral, cultura independente e economia criativa no Centro de Sorocaba.',
       description: 'Desde 2016, a Feira Beco do Inferno ocupa o Centro de Sorocaba e aproxima artistas, expositores e público.',
-      edition: { slug: '37-feira-beco-do-inferno', title: '37ª Feira Beco do Inferno', number: 37, status: 'REGISTRATION_OPEN', starts: '2026-10-18T10:00:00-03:00', ends: '2026-10-18T19:00:00-03:00', opens: '2026-09-20T09:00:00-03:00', closes: '2026-10-17T23:59:00-03:00', capacity: 60 },
+      edition: { slug: '37-feira-beco-do-inferno', title: '37ª Feira Beco do Inferno', number: 37, status: 'PUBLISHED', starts: '2026-10-18T10:00:00-03:00', ends: '2026-10-18T19:00:00-03:00', opens: '2026-09-20T09:00:00-03:00', closes: '2026-10-17T23:59:00-03:00', capacity: 60 },
       address: 'Rua Dr. Arthur Martins, 219', neighborhood: 'Centro', cover: 'assets/beco-feira.jpg', categories: ['arte-cultura', 'economia-criativa']
     },
     {

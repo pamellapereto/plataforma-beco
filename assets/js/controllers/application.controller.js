@@ -17,14 +17,14 @@ export function enabledApplicationAnswers(fields,form,valueOf) {
   }).map(field=>({fieldId:field.id,value:valueOf(field)}))
     .filter(answer=>answer.value!==null&&answer.value!==undefined);
 }
-export function applicationDetailHtml(detail) {
+export function applicationDetailHtml(detail, { includeHistory = true, includeStatus = true } = {}) {
   const answers=new Map(detail.answers.map(a=>[a.field_id,a.value_json]));
-  return `${status(detail.application.status)}<p>Protocolo: ${h(detail.application.id)}</p>${detail.exhibitor?`<p><b>${h(detail.exhibitor.display_name)}</b> · ${h(detail.exhibitor.contact_name)} · ${h(detail.exhibitor.phone)}</p>`:''}
+  return `${includeStatus?status(detail.application.status):''}<p>Protocolo: ${h(detail.application.id)}</p>${detail.exhibitor?`<p><b>${h(detail.exhibitor.display_name)}</b> · ${h(detail.exhibitor.contact_name)} · ${h(detail.exhibitor.phone)}</p>`:''}
   ${detail.form.sections.map(section=>`<section><h3>${h(section.title)}</h3><dl>${section.fields.filter(f=>!['IMAGE','FILE'].includes(f.type)).map(f=>{const v=answers.get(f.id);const optionLabels=new Map((f.options||[]).map(o=>[o.value,o.label]));const value=typeof v==='boolean'?(v?'Sim':'Não'):Array.isArray(v)?v.map(x=>optionLabels.get(x)||x).join(', '):optionLabels.get(v)||v;return `<dt>${h(f.label)}</dt><dd>${h(value??'Não informado')}</dd>`;}).join('')}</dl></section>`).join('')}
   <h3>Imagens enviadas</h3><div class="workflow-media">${detail.media.map(m=>`<article><a href="${h(m.url)}" target="_blank" rel="noreferrer"><img src="${h(m.url)}" alt="${h(m.original_filename)}"></a><p>${h(m.original_filename)}</p>${status(m.review_status)}<p>${h(m.curator_note||'')}</p><div data-media-actions="${h(m.id)}"></div></article>`).join('')||'<p>Nenhuma imagem enviada.</p>'}</div>
   ${detail.exceptionRequest?`<h3>Pedido de exceção</h3>${status(detail.exceptionRequest.status)}<p>${h(detail.exceptionRequest.reason)}</p><p>${h(detail.exceptionRequest.decision_note||'')}</p>`:''}
   <h3>Termos aceitos</h3>${detail.consents.map(c=>`<p>${h(c.consent_text)} · ${h(date(c.accepted_at))}</p>`).join('')||'<p>Ainda não houve envio definitivo.</p>'}
-  <h3>Histórico</h3><ul class="workflow-history">${detail.history.map(event=>`<li><time>${h(date(event.created_at))}</time> ${event.status?status(event.status):''}<p>${h(event.note||'')}</p></li>`).join('')}</ul>`;
+  ${includeHistory?`<h3>Histórico</h3><ul class="workflow-history">${detail.history.map(event=>`<li><time>${h(date(event.created_at))}</time> ${event.status?status(event.status):''}<p>${h(event.note||'')}</p></li>`).join('')}</ul>`:''}`;
 }
 export async function viewApplication(id) {
   const dialog=openDialog('Inscrição enviada','<p>Carregando…</p>');
@@ -47,8 +47,9 @@ export async function initializeApplication() {
   const params=new URLSearchParams(location.search);let applicationId=params.get('inscricao');let detail=applicationId?await api.request(`/applications/${encodeURIComponent(applicationId)}`):null;
   if(detail&&!['DRAFT','AWAITING_UPDATE'].includes(detail.application.status)){root.innerHTML=applicationDetailHtml(detail);return;}
   let editionId=detail?.application.fair_edition_id||params.get('edicao');
-  if(!editionId){const fairs=await api.fairs();const editions=fairs.flatMap(f=>f.editions||[]).filter(e=>e.status==='REGISTRATION_OPEN'&&new Date(e.ends_at)>new Date()&&(!e.registration_opens_at||new Date(e.registration_opens_at)<=new Date())&&(!e.registration_closes_at||new Date(e.registration_closes_at)>=new Date()));if(editions.length!==1)throw Error('Escolha uma feira com inscrições abertas na página Nossas feiras.');editionId=editions[0].id;}
+  if(!editionId){const fairs=await api.fairs();const editions=fairs.flatMap(f=>f.editions||[]).filter(e=>e.status==='PUBLISHED'&&e.registration_status==='OPEN');if(editions.length!==1)throw Error('Escolha uma feira com inscrições abertas na página Nossas feiras.');editionId=editions[0].id;}
   if(!applicationId){ const existing=(await api.myApplications()).find(a=>a.fair_edition_id===editionId); if(existing){applicationId=existing.id;detail=await api.request(`/applications/${applicationId}`);history.replaceState(null,'',`inscricao-expositor.html?inscricao=${encodeURIComponent(applicationId)}`);if(!['DRAFT','AWAITING_UPDATE'].includes(detail.application.status)){root.innerHTML=applicationDetailHtml(detail);return;}} }
+  if(detail?.application.status==='DRAFT')await api.request(`/fair-editions/${encodeURIComponent(editionId)}/form`);
   const definition=detail?.form||await api.request(`/fair-editions/${encodeURIComponent(editionId)}/form`);
   let media=detail?.media||[];const fields=definition.sections.flatMap(s=>s.fields);const saved=new Map((detail?.answers||[]).map(a=>[a.field_id,a.value_json]));
   root.innerHTML=`<h2>${h(definition.title)}</h2><p>${h(definition.introduction||'')}</p>${detail?.application.status==='AWAITING_UPDATE'?`<div class="workflow-empty">A curadoria solicitou ajustes. Consulte as orientações em <a href="area-expositor.html">Minhas inscrições</a>, atualize os dados e reenvie.</div>`:''}<form data-official-form>

@@ -76,6 +76,7 @@ export class MediaService {
     if (!uploadableApplicationStatuses.has(application.status)) {
       throw new HttpError(409, 'APPLICATION_NOT_EDITABLE', 'Esta inscrição não aceita novos envios de imagem.');
     }
+    if (application.status === 'DRAFT') await new FormsService(this.gateway).getForApplicant(application.fair_edition_id, principal);
     const role = mediaRole(input?.role);
     const fieldId = await this.assertMediaField(application, input?.fieldId);
     if (!String(input?.originalFilename || '').trim()) throw new HttpError(422, 'INVALID_FILENAME', 'Informe o nome original da imagem.');
@@ -95,6 +96,7 @@ export class MediaService {
     if (!uploadableApplicationStatuses.has(application.status)) {
       throw new HttpError(409, 'APPLICATION_NOT_EDITABLE', 'Esta inscrição não aceita novos envios de imagem.');
     }
+    if (application.status === 'DRAFT') await new FormsService(this.gateway).getForApplicant(application.fair_edition_id, principal);
     const role = mediaRole(input?.role);
     const fieldId = await this.assertMediaField(application, input?.fieldId);
     const prefix = `exhibitors/${exhibitor.id}/applications/${application.id}/${role.toLowerCase()}/`;
@@ -147,6 +149,7 @@ export class MediaService {
     if (!uploadableApplicationStatuses.has(application.status)) {
       throw new HttpError(409, 'APPLICATION_NOT_EDITABLE', 'Esta inscrição não permite remover imagens.');
     }
+    if (application.status === 'DRAFT') await new FormsService(this.gateway).getForApplicant(application.fair_edition_id, principal);
     const links = await this.gateway.request(`rest/v1/application_media?select=media_asset_id&application_id=eq.${encodeURIComponent(applicationId)}&media_asset_id=eq.${encodeURIComponent(mediaAssetId)}&limit=1`);
     if (!links[0]) throw new HttpError(404, 'MEDIA_NOT_FOUND', 'Imagem não encontrada nesta inscrição.');
     const assets = await this.gateway.request(`rest/v1/media_assets?select=id,storage_bucket,object_path&id=eq.${encodeURIComponent(mediaAssetId)}&limit=1`);

@@ -6,8 +6,8 @@ import { HttpError } from '../../lib/http.js';
 import { supabaseGateway } from '../../lib/supabase.js';
 import { validateUuid } from '../fairs/fairs.validation.js';
 
-const roles = new Set(['COVER', 'GALLERY', 'PROMOTION', 'BADGE_TEMPLATE', 'MAP']);
-const singletonRoles = new Set(['COVER', 'BADGE_TEMPLATE', 'MAP']);
+const roles = new Set(['COVER', 'GALLERY']);
+const singletonRoles = new Set(['COVER']);
 
 function cleanFilename(name = 'imagem') {
   return String(name).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
@@ -24,6 +24,12 @@ function optionalText(value, max, label) {
   if (value === undefined || value === null || value === '') return null;
   const result = String(value).trim();
   if (result.length > max) throw new HttpError(422, 'INVALID_INPUT', `${label} deve ter até ${max} caracteres.`);
+  return result;
+}
+
+function requiredDescription(value) {
+  const result = requiredText(value, 'a descrição da imagem');
+  if (result.length > 255) throw new HttpError(422, 'INVALID_INPUT', 'A descrição da imagem deve ter até 255 caracteres.');
   return result;
 }
 
@@ -78,7 +84,9 @@ export class FairMediaService {
   async createUploadUrl(editionId, input, principal) {
     await this.assertEdition(editionId, principal);
     const role = validateRole(input?.role);
+    if (input?.replaceMediaId) validateUuid(input.replaceMediaId, 'Imagem a substituir');
     const file = validateFile(input);
+    requiredDescription(input?.altText);
     const path = `fair-editions/${editionId}/${role.toLowerCase()}/${randomUUID()}-${cleanFilename(file.originalFilename)}`;
     const signed = await this.gateway.createSignedUploadUrl(config.supabase.publicMediaBucket, path);
     return {
@@ -94,6 +102,7 @@ export class FairMediaService {
     await this.assertEdition(editionId, principal);
     const role = validateRole(input?.role);
     const file = validateFile(input);
+    const altText = requiredDescription(input?.altText);
     const prefix = `fair-editions/${editionId}/${role.toLowerCase()}/`;
     if (!String(input?.objectPath || '').startsWith(prefix)) throw new HttpError(422, 'INVALID_OBJECT_PATH', 'Caminho da imagem inválido.');
     await assertStoredImage(this.gateway, config.supabase.publicMediaBucket, input);
@@ -101,8 +110,14 @@ export class FairMediaService {
     if (!Number.isInteger(position) || position < 0 || position > 500) throw new HttpError(422, 'INVALID_POSITION', 'Posição da imagem inválida.');
     if (singletonRoles.has(role) && position !== 0) throw new HttpError(422, 'INVALID_POSITION', 'Este tipo de imagem aceita somente a posição zero.');
 
-    const occupied = await this.gateway.request(`rest/v1/fair_edition_media?select=id&fair_edition_id=eq.${editionId}&role=eq.${role}&position=eq.${position}&limit=1`);
-    if (occupied[0]) throw new HttpError(409, 'MEDIA_POSITION_OCCUPIED', 'Já existe uma imagem neste papel e posição.');
+    const occupied = await this.gateway.request(`rest/v1/fair_edition_media?select=id,media_asset_id&fair_edition_id=eq.${editionId}&role=eq.${role}&position=eq.${position}&limit=1`);
+    const replaceMediaId = input?.replaceMediaId ? validateUuid(input.replaceMediaId, 'Imagem a substituir') : null;
+    const replacingMedia = Boolean(replaceMediaId && occupied[0]?.id === replaceMediaId);
+    if (occupied[0] && !replacingMedia) throw new HttpError(409, 'MEDIA_POSITION_OCCUPIED', 'Identificamos que já existe uma imagem vinculada a este papel e posição. Por favor, remova o arquivo anterior antes de prosseguir com o novo envio.');
+    if (role === 'GALLERY' && !replacingMedia) {
+      const gallery = await this.gateway.request(`rest/v1/fair_edition_media?select=id&fair_edition_id=eq.${editionId}&role=eq.GALLERY`);
+      if (gallery.length >= 6) throw new HttpError(409, 'GALLERY_LIMIT_REACHED', 'A galeria desta edição já possui o limite de seis imagens.');
+    }
 
     const assets = await this.gateway.request('rest/v1/media_assets', {
       method: 'POST', headers: { Prefer: 'return=representation' }, body: {
@@ -112,7 +127,7 @@ export class FairMediaService {
         original_filename: cleanFilename(file.originalFilename),
         mime_type: file.mimeType,
         byte_size: file.byteSize,
-        alt_text: optionalText(input.altText, 255, 'Texto alternativo'),
+        alt_text: altText,
         visibility: 'PUBLIC',
         review_status: 'APPROVED',
         reviewed_by_user_id: principal.id,
@@ -122,14 +137,23 @@ export class FairMediaService {
     const asset = assets[0];
     if (!asset) throw new HttpError(502, 'MEDIA_NOT_CREATED', 'Não foi possível registrar a imagem.');
     try {
-      const links = await this.gateway.request('rest/v1/fair_edition_media', {
-        method: 'POST', headers: { Prefer: 'return=representation' }, body: {
-          fair_edition_id: editionId,
-          media_asset_id: asset.id,
-          role,
-          position
-        }
-      });
+      const links = replacingMedia
+        ? await this.gateway.request(`rest/v1/fair_edition_media?id=eq.${replaceMediaId}`, {
+          method: 'PATCH', headers: { Prefer: 'return=representation' }, body: { media_asset_id: asset.id }
+        })
+        : await this.gateway.request('rest/v1/fair_edition_media', {
+          method: 'POST', headers: { Prefer: 'return=representation' }, body: {
+            fair_edition_id: editionId,
+            media_asset_id: asset.id,
+            role,
+            position
+          }
+        });
+      if (replacingMedia && occupied[0].media_asset_id) {
+        const previous = await this.gateway.request(`rest/v1/media_assets?select=id,storage_bucket,object_path&id=eq.${occupied[0].media_asset_id}&limit=1`);
+        const removed = await this.gateway.request(`rest/v1/media_assets?id=eq.${occupied[0].media_asset_id}`, { method: 'DELETE' }).then(() => true).catch(() => false);
+        if (removed && previous[0]) await this.gateway.deleteStorageObjects(previous[0].storage_bucket, [previous[0].object_path]).catch(() => undefined);
+      }
       return { ...links[0], asset: { ...asset, url: publicUrl(asset) } };
     } catch (error) {
       await this.gateway.request(`rest/v1/media_assets?id=eq.${asset.id}`, { method: 'DELETE' }).catch(() => undefined);

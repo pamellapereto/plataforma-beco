@@ -36,7 +36,7 @@ export function createControllers(model = supabaseModel) {
     curation: createCurationController(new CurationService(model, applicationsService)),
     exhibitors: createExhibitorsController(new ExhibitorsService(model)),
     evaluations: createEvaluationsController(new EvaluationsService(model, formsService)),
-    fairs: createFairsController(new FairsService(model)),
+    fairs: createFairsController(new FairsService(model, formsService)),
     fairMedia: createFairMediaController(new FairMediaService(model)),
     forms: createFormsController(formsService),
     homepage: createHomepageController(new HomepageService(model)),

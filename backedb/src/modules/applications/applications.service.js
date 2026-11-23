@@ -134,6 +134,7 @@ export class ApplicationsService {
   async saveAnswers(applicationId, input, principal) {
     const application = await this.applicationAccess(applicationId, principal);
     if (!editableStatuses.has(application.status)) throw new HttpError(409, 'APPLICATION_NOT_EDITABLE', 'Esta inscrição não pode ser editada.');
+    if (application.status === 'DRAFT') await this.forms.getForApplicant(application.fair_edition_id, principal);
     const submittedAnswers = validateAnswers(input);
     if (submittedAnswers.some((answer) => answer.value === null || answer.value === undefined)) {
       throw new HttpError(422, 'INVALID_ANSWER_VALUE', 'A resposta de uma pergunta não pode ser nula.');

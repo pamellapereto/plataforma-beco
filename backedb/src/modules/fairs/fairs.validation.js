@@ -1,15 +1,10 @@
 import { HttpError } from '../../lib/http.js';
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const editionStatuses = ['DRAFT', 'PUBLISHED', 'REGISTRATION_OPEN', 'CURATION', 'CONFIRMED', 'FINISHED', 'CANCELLED'];
+const editionStatuses = ['DRAFT', 'PUBLISHED'];
 const statusTransitions = {
-  DRAFT: ['PUBLISHED', 'CANCELLED'],
-  PUBLISHED: ['DRAFT', 'REGISTRATION_OPEN', 'CANCELLED'],
-  REGISTRATION_OPEN: ['CURATION', 'CANCELLED'],
-  CURATION: ['CONFIRMED', 'CANCELLED'],
-  CONFIRMED: ['FINISHED', 'CANCELLED'],
-  FINISHED: [],
-  CANCELLED: []
+  DRAFT: ['PUBLISHED'],
+  PUBLISHED: ['DRAFT']
 };
 
 function requiredText(value, field, max) {
@@ -28,6 +23,13 @@ function optionalText(value, field, max) {
 
 function dateValue(value, field, required = true) {
   if ((value === undefined || value === null || value === '') && !required) return null;
+  const parts = String(value).match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/);
+  if (!parts) throw new HttpError(422, 'INVALID_DATE', `${field} deve informar dia, mês, ano com quatro dígitos, hora e minuto.`);
+  const [, year, month, day, hour, minute] = parts;
+  const probe = new Date(Date.UTC(Number(year), Number(month) - 1, Number(day), Number(hour), Number(minute)));
+  if (probe.getUTCFullYear() !== Number(year) || probe.getUTCMonth() !== Number(month) - 1 || probe.getUTCDate() !== Number(day) || Number(hour) > 23 || Number(minute) > 59) {
+    throw new HttpError(422, 'INVALID_DATE', `${field} possui uma data inválida.`);
+  }
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) throw new HttpError(422, 'INVALID_DATE', `${field} possui uma data inválida.`);
   return date.toISOString();
@@ -79,13 +81,31 @@ function categoryIds(value) {
 function status(value, creation = false) {
   const normalized = String(value || 'DRAFT').toUpperCase();
   if (!editionStatuses.includes(normalized)) throw new HttpError(422, 'INVALID_STATUS', 'Status de edição inválido.');
-  if (creation && !['DRAFT', 'PUBLISHED'].includes(normalized)) {
-    throw new HttpError(422, 'INVALID_STATUS', 'Uma edição nova deve começar como rascunho ou publicada.');
+  if (creation && normalized !== 'DRAFT') {
+    throw new HttpError(422, 'INVALID_STATUS', 'Uma edição nova deve começar como rascunho. Salve o formulário antes de publicá-la.');
   }
   return normalized;
 }
 
+function saoPauloDateKey(value = new Date()) {
+  const parts = Object.fromEntries(new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit'
+  }).formatToParts(value).map((part) => [part.type, part.value]));
+  return `${parts.year}-${parts.month}-${parts.day}`;
+}
+
+function assertNotPast(value, field, today) {
+  if (saoPauloDateKey(new Date(value)) < today) {
+    throw new HttpError(422, 'PAST_DATE_NOT_ALLOWED', `${field} não pode possuir uma data anterior ao dia de hoje no horário de São Paulo.`);
+  }
+}
+
 function assertDates(startsAt, endsAt, registrationOpensAt, registrationClosesAt) {
+  const today = saoPauloDateKey();
+  assertNotPast(startsAt, 'Início da feira', today);
+  assertNotPast(endsAt, 'Término da feira', today);
+  assertNotPast(registrationOpensAt, 'Abertura das inscrições', today);
+  assertNotPast(registrationClosesAt, 'Encerramento das inscrições', today);
   if (new Date(endsAt) <= new Date(startsAt)) throw new HttpError(422, 'INVALID_DATE_RANGE', 'O término da edição deve ocorrer depois do início.');
   if (registrationOpensAt && registrationClosesAt && new Date(registrationClosesAt) <= new Date(registrationOpensAt)) {
     throw new HttpError(422, 'INVALID_REGISTRATION_RANGE', 'O encerramento das inscrições deve ocorrer depois da abertura.');
@@ -103,7 +123,7 @@ export function validateFairCreate(input = {}) {
   return {
     name,
     slug: slug(input.slug, name),
-    short_description: optionalText(input.shortDescription, 'Descrição curta', 500),
+    short_description: requiredText(input.shortDescription, 'Apresentação curta', 500),
     description: optionalText(input.description, 'Descrição', 10000),
     categoryIds: categoryIds(input.categoryIds) || []
   };
@@ -113,7 +133,7 @@ export function validateFairPatch(input = {}) {
   const patch = {};
   if (input.name !== undefined) patch.name = requiredText(input.name, 'Nome da feira', 180);
   if (input.slug !== undefined) patch.slug = slug(input.slug);
-  if (input.shortDescription !== undefined) patch.short_description = optionalText(input.shortDescription, 'Descrição curta', 500);
+  if (input.shortDescription !== undefined) patch.short_description = requiredText(input.shortDescription, 'Apresentação curta', 500);
   if (input.description !== undefined) patch.description = optionalText(input.description, 'Descrição', 10000);
   if (input.isActive !== undefined) {
     if (typeof input.isActive !== 'boolean') throw new HttpError(422, 'INVALID_INPUT', 'Situação ativa deve ser verdadeira ou falsa.');
@@ -127,15 +147,20 @@ export function validateLocation(input = {}, partial = false) {
   const addRequired = (key, dbKey, label, max) => {
     if (!partial || input[key] !== undefined) result[dbKey] = requiredText(input[key], label, max);
   };
+  addRequired('name', 'name', 'Nome do local', 180);
+  addRequired('postalCode', 'postal_code', 'CEP', 12);
   addRequired('addressLine', 'address_line', 'Endereço', 255);
+  addRequired('addressNumber', 'address_number', 'Número', 30);
+  addRequired('neighborhood', 'neighborhood', 'Bairro', 120);
   addRequired('city', 'city', 'Cidade', 120);
   addRequired('state', 'state', 'Estado', 2);
   if (result.state) result.state = result.state.toUpperCase();
   if (result.state && result.state.length !== 2) throw new HttpError(422, 'INVALID_STATE', 'Estado deve usar uma sigla com duas letras.');
-  if (!partial || input.name !== undefined) result.name = optionalText(input.name, 'Nome do local', 180);
   if (!partial || input.complement !== undefined) result.complement = optionalText(input.complement, 'Complemento', 120);
-  if (!partial || input.neighborhood !== undefined) result.neighborhood = optionalText(input.neighborhood, 'Bairro', 120);
-  if (!partial || input.postalCode !== undefined) result.postal_code = optionalText(input.postalCode, 'CEP', 12);
+  if (result.postal_code) {
+    result.postal_code = result.postal_code.replace(/\D/g, '');
+    if (result.postal_code.length !== 8) throw new HttpError(422, 'INVALID_POSTAL_CODE', 'CEP deve possuir oito dígitos.');
+  }
   if (!partial || input.mapsUrl !== undefined) result.maps_url = optionalUrl(input.mapsUrl, 'Link do mapa');
   if (!partial || input.latitude !== undefined) result.latitude = coordinate(input.latitude, 'Latitude', -90, 90);
   if (!partial || input.longitude !== undefined) result.longitude = coordinate(input.longitude, 'Longitude', -180, 180);
@@ -147,8 +172,8 @@ export function validateEditionCreate(input = {}) {
   const title = requiredText(input.title, 'Título da edição', 220);
   const startsAt = dateValue(input.startsAt, 'Início');
   const endsAt = dateValue(input.endsAt, 'Término');
-  const registrationOpensAt = dateValue(input.registrationOpensAt, 'Abertura das inscrições', false);
-  const registrationClosesAt = dateValue(input.registrationClosesAt, 'Encerramento das inscrições', false);
+  const registrationOpensAt = dateValue(input.registrationOpensAt, 'Abertura das inscrições');
+  const registrationClosesAt = dateValue(input.registrationClosesAt, 'Encerramento das inscrições');
   assertDates(startsAt, endsAt, registrationOpensAt, registrationClosesAt);
   return {
     edition: {
@@ -180,11 +205,12 @@ export function validateEditionPatch(input = {}, current) {
   if (input.exhibitorCapacity !== undefined) patch.exhibitor_capacity = integer(input.exhibitorCapacity, 'Capacidade de expositores', { min: 1 });
   if (input.startsAt !== undefined) patch.starts_at = dateValue(input.startsAt, 'Início');
   if (input.endsAt !== undefined) patch.ends_at = dateValue(input.endsAt, 'Término');
-  if (input.registrationOpensAt !== undefined) patch.registration_opens_at = dateValue(input.registrationOpensAt, 'Abertura das inscrições', false);
-  if (input.registrationClosesAt !== undefined) patch.registration_closes_at = dateValue(input.registrationClosesAt, 'Encerramento das inscrições', false);
+  if (input.registrationOpensAt !== undefined) patch.registration_opens_at = dateValue(input.registrationOpensAt, 'Abertura das inscrições');
+  if (input.registrationClosesAt !== undefined) patch.registration_closes_at = dateValue(input.registrationClosesAt, 'Encerramento das inscrições');
   if (input.status !== undefined) {
     const next = status(input.status);
-    if (next !== current.status && !statusTransitions[current.status].includes(next)) {
+    const allowed = statusTransitions[current.status] || ['DRAFT', 'PUBLISHED'];
+    if (next !== current.status && !allowed.includes(next)) {
       throw new HttpError(409, 'INVALID_STATUS_TRANSITION', `Não é possível mudar a edição de ${current.status} para ${next}.`);
     }
     patch.status = next;

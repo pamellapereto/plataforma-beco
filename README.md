@@ -40,10 +40,13 @@ Para preparar um PostgreSQL local vazio:
 Copy-Item .env.example .env.local
 # configure DATABASE_PROVIDER=postgres, DATABASE_URL e as credenciais do Supabase
 npm run db:setup
+npm run db:seed:local
 npm run dev:api
 ```
 
 Use um banco vazio: `db:setup` instala a compatibilidade mínima com os schemas do Supabase e aplica todas as migrations em ordem. Contas autenticadas no Supabase precisam ter o mesmo UUID em `auth.users` e `public.app_users` no banco local. O endpoint `GET /api/v1/health` informa o provider ativo.
+
+`db:seed:local` preserva os registros existentes e cria dados demonstrativos idempotentes para os principais fluxos: inscrições abertas, curadoria, edição confirmada, pós-evento, espaços, candidaturas em diferentes status, presença e avaliações. Ele só executa quando `DATABASE_PROVIDER=postgres`.
 
 Para voltar ao Supabase, altere apenas `DATABASE_PROVIDER=supabase`; `DATABASE_URL` será ignorada pela API.
 

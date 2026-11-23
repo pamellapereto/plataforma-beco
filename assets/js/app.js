@@ -22,16 +22,22 @@ const page = document.body.dataset.page || ({
   'login.html': 'login',
   'area-expositor.html': 'exhibitor-dashboard',
   'curadoria.html': 'curation-dashboard',
+  'analise-candidatura.html': 'curation-application',
   'personalizar-home.html': 'home-editor',
   'sobre.html': 'about',
   'editar-sobre.html': 'about-editor'
 })[filename] || '';
+
+if (['home-editor','about-editor'].includes(page) && !document.querySelector('link[href="assets/dashboard-ui.css"]')) {
+  const dashboardStylesheet=document.createElement('link');dashboardStylesheet.rel='stylesheet';dashboardStylesheet.href='assets/dashboard-ui.css';document.head.append(dashboardStylesheet);
+}
 
 if (!document.querySelector('link[href="assets/workflows.css"]')) { const link=document.createElement('link');link.rel='stylesheet';link.href='assets/workflows.css';document.head.append(link); }
 const canInitialize = await initializeAuth(page);
 if (canInitialize !== false) {
   await initializeCatalog(page);
   if (['exhibitor-dashboard','curation-dashboard'].includes(page)) await (await import('./controllers/dashboard.controller.js')).initializeDashboard(page);
+  if (page === 'curation-application') await (await import('./controllers/curation-application.controller.js')).initializeCurationApplication();
   if (page === 'application') await (await import('./controllers/application.controller.js')).initializeApplication();
   if (page === 'home-editor') await (await import('./controllers/homepage.controller.js')).initializeHomepageEditor();
   if (page === 'about-editor') await (await import('./controllers/about.controller.js')).initializeAboutEditor();
