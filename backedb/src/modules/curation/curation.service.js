@@ -9,15 +9,22 @@ import { validateDecision, validateExceptionDecision, validateMediaReview } from
 import { participationHistory } from './participation-history.js';
 
 const transitions = {
-  SUBMITTED: ['PHOTO_REVIEW', 'UNDER_REVIEW', 'AWAITING_UPDATE', 'WAITLISTED', 'APPROVED', 'DECLINED'],
+  SUBMITTED: ['UNDER_REVIEW'],
   PHOTO_REVIEW: ['UNDER_REVIEW', 'AWAITING_UPDATE', 'DECLINED'],
   UNDER_REVIEW: ['AWAITING_UPDATE', 'WAITLISTED', 'APPROVED', 'DECLINED'],
   AWAITING_UPDATE: ['PHOTO_REVIEW', 'UNDER_REVIEW', 'DECLINED'],
   WAITLISTED: ['APPROVED', 'DECLINED'],
-  APPROVED: ['CONFIRMED', 'DECLINED', 'CANCELLED'],
+  APPROVED: ['DECLINED', 'CANCELLED'],
   CONFIRMED: ['CANCELLED'],
-  DRAFT: [], DECLINED: [], CANCELLED: [], FINISHED: []
+  DRAFT: [], DECLINED: [], CANCELLED: []
 };
+const orientationEditableStatuses = new Set(['PHOTO_REVIEW', 'UNDER_REVIEW', 'AWAITING_UPDATE', 'WAITLISTED', 'APPROVED', 'DECLINED']);
+
+function allowedTransitions(status) {
+  const allowed = [...(transitions[status] || [])];
+  if (orientationEditableStatuses.has(status)) allowed.unshift(status);
+  return allowed;
+}
 
 export class CurationService {
   constructor(gateway = supabaseGateway, applicationsService, emailService = new EmailService()) {
@@ -42,14 +49,14 @@ export class CurationService {
     const allowed = ['DRAFT', 'SUBMITTED', 'PHOTO_REVIEW', 'UNDER_REVIEW', 'AWAITING_UPDATE', 'WAITLISTED', 'APPROVED', 'CONFIRMED', 'DECLINED', 'CANCELLED'];
     const status = filters.status ? String(filters.status).toUpperCase() : null;
     if (status && !allowed.includes(status)) throw new HttpError(422, 'INVALID_STATUS', 'Filtro de status inválido.');
-    const statusFilter = status ? `&status=eq.${status}` : '';
+    const statusFilter = status ? `&status=eq.${status}` : '&status=neq.DRAFT';
     const applications = await this.gateway.request(`rest/v1/applications?select=*&fair_edition_id=eq.${editionId}${statusFilter}&order=created_at.desc`);
     if (!applications.length) return [];
     const applicationIds = applications.map((item) => item.id);
     const exhibitorIds = [...new Set(applications.map((item) => item.exhibitor_id))];
     const [exhibitors, media, exceptions, categoryLinks, history] = await Promise.all([
       this.gateway.request(`rest/v1/exhibitors?select=id,display_name,contact_name,phone,instagram_url,city,state&id=in.(${exhibitorIds.join(',')})`),
-      this.gateway.request(`rest/v1/application_media?select=application_id,media_asset_id&application_id=in.(${applicationIds.join(',')})`),
+      this.gateway.request(`rest/v1/application_media?select=application_id,media_asset_id&application_id=in.(${applicationIds.join(',')})&archived_at=is.null`),
       this.gateway.request(`rest/v1/application_exception_requests?select=application_id,status,request_type&application_id=in.(${applicationIds.join(',')})`),
       this.gateway.request(`rest/v1/exhibitor_category_links?select=exhibitor_id,category_id&exhibitor_id=in.(${exhibitorIds.join(',')})`),
       participationHistory(this.gateway, principal.organizationId, edition, exhibitorIds)
@@ -97,15 +104,22 @@ export class CurationService {
       ? await this.gateway.request(`rest/v1/fairs?select=id,name&id=eq.${edition.fair_id}&limit=1`)
       : [];
     const editionContext = edition ? { ...edition, fair: fairs[0] || null } : null;
-    const actorIds = [...new Set(detail.history.map((item) => item.actor_user_id).filter(Boolean))];
+    const actorIds = [...new Set([
+      ...detail.history.map((item) => item.actor_user_id),
+      detail.exceptionRequest?.decided_by_user_id
+    ].filter(Boolean))];
     const actors = actorIds.length
       ? await this.gateway.request(`rest/v1/app_users?select=id,full_name,email&id=in.(${actorIds.join(',')})`)
       : [];
     const actorById = new Map(actors.map((actor) => [actor.id, actor]));
     const history = detail.history.map((item) => ({ ...item, actor: actorById.get(item.actor_user_id) || null }));
+    const exceptionRequest = detail.exceptionRequest
+      ? { ...detail.exceptionRequest, decidedBy: actorById.get(detail.exceptionRequest.decided_by_user_id) || null }
+      : null;
     const exhibitors = await this.gateway.request(`rest/v1/exhibitors?select=*&id=eq.${detail.application.exhibitor_id}&limit=1`);
     const exhibitor = exhibitors[0];
-    if (!exhibitor) return { ...detail, history, edition: editionContext, exhibitor: null };
+    const allowedApplicationTransitions = allowedTransitions(detail.application.status);
+    if (!exhibitor) return { ...detail, history, exceptionRequest, allowedTransitions: allowedApplicationTransitions, edition: editionContext, exhibitor: null };
     const [users, categoryLinks] = await Promise.all([
       this.gateway.request(`rest/v1/app_users?select=id,email,full_name,is_active&id=eq.${exhibitor.user_id}&limit=1`),
       this.gateway.request(`rest/v1/exhibitor_category_links?select=category_id&exhibitor_id=eq.${exhibitor.id}`)
@@ -114,34 +128,33 @@ export class CurationService {
     const categories = categoryIds.length
       ? await this.gateway.request(`rest/v1/exhibitor_categories?select=id,name,slug&id=in.(${categoryIds.join(',')})`)
       : [];
-    return { ...detail, history, edition: editionContext, exhibitor: { ...exhibitor, account: users[0] || null, categories } };
+    return { ...detail, history, exceptionRequest, allowedTransitions: allowedApplicationTransitions, edition: editionContext, exhibitor: { ...exhibitor, account: users[0] || null, categories } };
   }
 
   async decide(applicationId, input, principal) {
     requireBecoAdmin(principal);
     const application = await this.applications.applicationAccess(applicationId, principal);
     const decision = validateDecision(input);
-    if (decision.status !== application.status && !(transitions[application.status] || []).includes(decision.status)) {
+    if (!allowedTransitions(application.status).includes(decision.status)) {
       throw new HttpError(409, 'INVALID_STATUS_TRANSITION', `Não é possível mudar a inscrição de ${application.status} para ${decision.status}.`);
     }
     if (['APPROVED','CONFIRMED'].includes(decision.status)) {
-      const links = await this.gateway.request(`rest/v1/application_media?select=media_asset_id&application_id=eq.${applicationId}`);
+      const links = await this.gateway.request(`rest/v1/application_media?select=media_asset_id&application_id=eq.${applicationId}&archived_at=is.null`);
       if (links.length) { const assets = await this.gateway.request(`rest/v1/media_assets?select=review_status&id=in.(${links.map(m=>m.media_asset_id).join(',')})`); if (assets.some(m=>m.review_status!=='APPROVED')) throw new HttpError(409, 'MEDIA_REVIEW_REQUIRED', 'Conclua a aprovação das imagens antes de selecionar o expositor.'); }
     }
-    if (decision.status === 'CONFIRMED' && !application.assigned_space_id) {
-      throw new HttpError(409, 'SPACE_REQUIRED', 'Atribua um espaço antes de confirmar a participação.');
-    }
+    const startingReview = application.status === 'SUBMITTED' && decision.status === 'UNDER_REVIEW';
+    const decisionNote = startingReview ? 'Análise da candidatura iniciada pela curadoria.' : decision.note;
     const result = await this.gateway.request('rest/v1/rpc/transition_application', {
       method: 'POST', body: {
         p_application_id: applicationId,
         p_actor_user_id: principal.id,
         p_next_status: decision.status,
-        p_note: decision.note,
+        p_note: decisionNote,
         p_visible_to_exhibitor: decision.visible,
         p_mark_reviewed: true
       }
     });
-    await this.notify(application, decision.status, decision.note);
+    await this.notify(application, decision.status, decision.visible ? decisionNote : null);
     return Array.isArray(result) ? result[0] : result;
   }
 
@@ -171,14 +184,25 @@ export class CurationService {
     requireBecoAdmin(principal);
     validateUuid(mediaId, 'Imagem');
     const review = validateMediaReview(input);
-    const assets = await this.gateway.request(`rest/v1/media_assets?select=id&id=eq.${mediaId}&limit=1`);
+    const assets = await this.gateway.request(`rest/v1/media_assets?select=id,reviewed_at&id=eq.${mediaId}&limit=1`);
     if (!assets[0]) throw new HttpError(404, 'MEDIA_NOT_FOUND', 'Imagem não encontrada.');
-    const links = await this.gateway.request(`rest/v1/application_media?select=application_id&media_asset_id=eq.${mediaId}&limit=1`);
+    const links = await this.gateway.request(`rest/v1/application_media?select=application_id&media_asset_id=eq.${mediaId}&archived_at=is.null&limit=1`);
     const portfolioLinks = links[0] ? [] : await this.gateway.request(`rest/v1/exhibitor_portfolio_media?select=exhibitor_id&media_asset_id=eq.${mediaId}&limit=1`);
     if (!links[0] && !portfolioLinks[0]) throw new HttpError(404, 'MEDIA_NOT_FOUND', 'Imagem não está vinculada a uma inscrição ou galeria.');
-    if (links[0]) { const application = await this.applications.applicationAccess(links[0].application_id, principal); if (['CONFIRMED','CANCELLED','DECLINED'].includes(application.status)) throw new HttpError(409, 'APPLICATION_FINAL', 'Esta candidatura já foi concluída.'); }
+    if (links[0]) {
+      const application = await this.applications.applicationAccess(links[0].application_id, principal);
+      if (application.status === 'SUBMITTED') {
+        throw new HttpError(409, 'APPLICATION_REVIEW_NOT_STARTED', 'Inicie formalmente a análise da candidatura antes de avaliar suas imagens.');
+      }
+      if (!['UNDER_REVIEW', 'PHOTO_REVIEW', 'AWAITING_UPDATE'].includes(application.status)) {
+        throw new HttpError(409, 'MEDIA_REVIEW_NOT_ALLOWED', 'A situação atual da candidatura permite consultar as imagens, mas não realizar novas avaliações.');
+      }
+    }
     const now = new Date().toISOString();
-    const rows = await this.gateway.request(`rest/v1/media_assets?id=eq.${mediaId}`, {
+    const expectedReviewFilter = review.hasExpectedReview
+      ? review.expectedReviewedAt === null ? '&reviewed_at=is.null' : `&reviewed_at=eq.${encodeURIComponent(review.expectedReviewedAt)}`
+      : '';
+    const rows = await this.gateway.request(`rest/v1/media_assets?id=eq.${mediaId}${expectedReviewFilter}`, {
       method: 'PATCH', headers: { Prefer: 'return=representation' }, body: {
         review_status: review.status,
         ...(review.status !== 'APPROVED' ? { visibility: 'PRIVATE' } : {}),
@@ -188,6 +212,7 @@ export class CurationService {
         updated_at: now
       }
     });
+    if (!rows[0]) throw new HttpError(409, 'MEDIA_REVIEW_CHANGED', 'Esta imagem foi avaliada por outra pessoa. Recarregue as informações antes de continuar.');
     if (links[0] && review.status !== 'APPROVED') {
       await this.gateway.request(`rest/v1/applications?id=eq.${links[0].application_id}`, {
         method: 'PATCH', body: { status: 'AWAITING_UPDATE', updated_at: now }
@@ -217,24 +242,17 @@ export class CurationService {
     requireBecoAdmin(principal);
     validateUuid(requestId, 'Pedido');
     const decision = validateExceptionDecision(input);
-    const rows = await this.gateway.request(`rest/v1/application_exception_requests?id=eq.${requestId}`, {
-      method: 'PATCH', headers: { Prefer: 'return=representation' }, body: {
-        status: decision.status,
-        decision_note: decision.note,
-        decided_by_user_id: principal.id,
-        decided_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
+    const result = await this.gateway.request('rest/v1/rpc/decide_application_exception_request', {
+      method: 'POST', body: {
+        p_request_id: requestId,
+        p_actor_user_id: principal.id,
+        p_status: decision.status,
+        p_note: decision.note
       }
     });
-    if (!rows[0]) throw new HttpError(404, 'EXCEPTION_REQUEST_NOT_FOUND', 'Pedido não encontrado.');
-    await this.applications.addHistory(
-      rows[0].application_id,
-      principal,
-      null,
-      `Pedido especial ${decision.status === 'APPROVED' ? 'aprovado' : 'recusado'} pela curadoria.${decision.note ? ` ${decision.note}` : ''}`,
-      true
-    );
-    return rows[0];
+    const request = Array.isArray(result) ? result[0] : result;
+    if (!request) throw new HttpError(404, 'EXCEPTION_REQUEST_NOT_FOUND', 'Pedido não encontrado.');
+    return request;
   }
 
   async dashboard(principal) {

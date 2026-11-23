@@ -64,16 +64,14 @@ export function bindForm(form, submit) {
   form?.addEventListener('submit', event => { event.preventDefault(); if (form.reportValidity()) busy(form.querySelector('[type=submit]'), () => submit(readForm(form), form), form.querySelector('[data-feedback]')); });
 }
 export function openDialog(title, content) {
-  const previousOverflow = document.documentElement.style.overflow;
   const dialog = document.createElement('dialog'); dialog.className = 'workflow-dialog';
   dialog.innerHTML = `<div class="dialog-heading"><h2>${escapeHtml(title)}</h2><button type="button" data-close aria-label="Fechar">×</button></div><div data-dialog-body>${content}</div>`;
   document.body.append(dialog);
-  document.documentElement.style.overflow = 'hidden';
   const requestClose=()=>{if(typeof dialog.beforeWorkflowClose==='function'&&!dialog.beforeWorkflowClose())return;dialog.close();};
   dialog.requestWorkflowClose=requestClose;
   dialog.querySelector('[data-close]').onclick = requestClose;
   dialog.addEventListener('cancel',event=>{event.preventDefault();requestClose();});
-  dialog.addEventListener('close',()=>{dialog.remove();document.documentElement.style.overflow=previousOverflow;}); dialog.addEventListener('click',e=>{if(e.target===dialog)requestClose();}); dialog.showModal(); return dialog;
+  dialog.addEventListener('close',()=>dialog.remove()); dialog.addEventListener('click',e=>{if(e.target===dialog)requestClose();}); dialog.showModal(); return dialog;
 }
 export function downloadCsv(filename, rows) {
   const cell = value => `"${String(value ?? '').replace(/^[=+@-]/,"'$&").replaceAll('"','""')}"`;

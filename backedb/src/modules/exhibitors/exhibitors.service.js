@@ -115,7 +115,7 @@ export class ExhibitorsService {
 
   async publicDetail(exhibitorId) {
     validateUuid(exhibitorId, 'Expositor');
-    const rows = await this.gateway.request(`rest/v1/exhibitors?select=id,display_name,bio,city,state,instagram_url,social_links&id=eq.${exhibitorId}&status=eq.APPROVED&profile_visibility=eq.PUBLIC&limit=1`);
+    const rows = await this.gateway.request(`rest/v1/exhibitors?select=id,display_name,contact_name,phone,bio,city,state,instagram_url,social_links&id=eq.${exhibitorId}&status=eq.APPROVED&profile_visibility=eq.PUBLIC&limit=1`);
     const profile = rows[0];
     if (!profile) throw new HttpError(404, 'EXHIBITOR_NOT_FOUND', 'Expositor não encontrado.');
     const [categories, portfolio, applications] = await Promise.all([
@@ -220,6 +220,13 @@ export class ExhibitorsService {
     if (!String(input.originalFilename || '').trim()) throw new HttpError(422, 'INVALID_FILENAME', 'Informe o nome da imagem.');
     if (!config.upload.allowedMimeTypes.includes(input.mimeType)) throw new HttpError(422, 'INVALID_MEDIA_TYPE', 'Formato de imagem inválido.');
     if (!Number.isInteger(input.byteSize) || input.byteSize <= 0 || input.byteSize > config.upload.maxBytes) throw new HttpError(422, 'INVALID_MEDIA_SIZE', 'Tamanho de imagem inválido.');
+    const links = await this.gateway.request(`rest/v1/exhibitor_portfolio_media?select=media_asset_id&exhibitor_id=eq.${profile.id}`);
+    if (input.replaceMediaId) {
+      validateUuid(input.replaceMediaId, 'Mídia substituída');
+      if (!links.some((link) => link.media_asset_id === input.replaceMediaId)) throw new HttpError(404, 'MEDIA_NOT_FOUND', 'Imagem a substituir não encontrada no seu portfólio.');
+    } else if (links.length >= 6) {
+      throw new HttpError(409, 'PORTFOLIO_LIMIT', 'O portfólio pode ter no máximo 6 imagens.');
+    }
     const path = `exhibitors/${profile.id}/portfolio/${randomUUID()}-${cleanFilename(input.originalFilename)}`;
     const signed = await this.gateway.createSignedUploadUrl(config.supabase.curationSubmissionsBucket, path);
     return { bucket: config.supabase.curationSubmissionsBucket, objectPath: path, uploadUrl: mediaUrl(signed.url), token: signed.token };
@@ -233,9 +240,20 @@ export class ExhibitorsService {
       throw new HttpError(422, 'INVALID_MEDIA', 'Metadados da imagem inválidos.');
     }
     await assertStoredImage(this.gateway, config.supabase.curationSubmissionsBucket, input);
-    const links = await this.gateway.request(`rest/v1/exhibitor_portfolio_media?select=position&exhibitor_id=eq.${profile.id}&order=position.desc&limit=1`);
-    const position = (links[0]?.position ?? -1) + 1;
-    if (position >= 30) throw new HttpError(409, 'PORTFOLIO_LIMIT', 'A galeria pode ter no máximo 30 imagens.');
+    const links = await this.gateway.request(`rest/v1/exhibitor_portfolio_media?select=id,media_asset_id,position,is_featured&exhibitor_id=eq.${profile.id}&order=position.asc`);
+    let replacement = null;
+    if (input.replaceMediaId) {
+      validateUuid(input.replaceMediaId, 'Mídia substituída');
+      replacement = links.find((link) => link.media_asset_id === input.replaceMediaId) || null;
+      if (!replacement) {
+        await this.gateway.deleteStorageObjects(config.supabase.curationSubmissionsBucket, [input.objectPath]).catch(() => undefined);
+        throw new HttpError(404, 'MEDIA_NOT_FOUND', 'Imagem a substituir não encontrada no seu portfólio.');
+      }
+    } else if (links.length >= 6) {
+      await this.gateway.deleteStorageObjects(config.supabase.curationSubmissionsBucket, [input.objectPath]).catch(() => undefined);
+      throw new HttpError(409, 'PORTFOLIO_LIMIT', 'O portfólio pode ter no máximo 6 imagens.');
+    }
+    const position = replacement?.position ?? ((links.at(-1)?.position ?? -1) + 1);
     const assets = await this.gateway.request('rest/v1/media_assets', {
       method: 'POST', headers: { Prefer: 'return=representation' }, body: {
         owner_user_id: principal.id, owner_exhibitor_id: profile.id,
@@ -248,25 +266,62 @@ export class ExhibitorsService {
     });
     const asset = assets[0];
     try {
-      await this.gateway.request('rest/v1/exhibitor_portfolio_media', {
-        method: 'POST', body: { exhibitor_id: profile.id, media_asset_id: asset.id, position, is_featured: position === 0 }
-      });
+      if (replacement) {
+        await this.gateway.request(`rest/v1/exhibitor_portfolio_media?id=eq.${replacement.id}&exhibitor_id=eq.${profile.id}`, {
+          method: 'PATCH', body: { media_asset_id: asset.id }
+        });
+      } else {
+        await this.gateway.request('rest/v1/exhibitor_portfolio_media', {
+          method: 'POST', body: { exhibitor_id: profile.id, media_asset_id: asset.id, position, is_featured: position === 0 }
+        });
+      }
     } catch (error) {
       await this.gateway.request(`rest/v1/media_assets?id=eq.${asset.id}`, { method: 'DELETE' }).catch(() => undefined);
       throw error;
     }
+    if (replacement) {
+      const oldAssets = await this.gateway.request(`rest/v1/media_assets?select=id,storage_bucket,object_path&id=eq.${replacement.media_asset_id}&limit=1`).catch(() => []);
+      const applicationLinks = await this.gateway.request(`rest/v1/application_media?select=id&media_asset_id=eq.${replacement.media_asset_id}&limit=1`).catch(() => [{ id: 'preserve-on-lookup-failure' }]);
+      if (oldAssets[0] && !applicationLinks[0]) {
+        await this.gateway.request(`rest/v1/media_assets?id=eq.${replacement.media_asset_id}`, { method: 'DELETE' }).catch(() => undefined);
+        await this.gateway.deleteStorageObjects(oldAssets[0].storage_bucket, [oldAssets[0].object_path]).catch(() => undefined);
+      }
+    }
     return asset;
+  }
+
+  async setPortfolioCover(mediaAssetId, principal) {
+    validateUuid(mediaAssetId, 'Mídia');
+    const profile = await this.profileFor(principal, true);
+    const links = await this.gateway.request(`rest/v1/exhibitor_portfolio_media?select=id,media_asset_id,is_featured&exhibitor_id=eq.${profile.id}&order=position.asc`);
+    const selected = links.find((link) => link.media_asset_id === mediaAssetId);
+    if (!selected) throw new HttpError(404, 'MEDIA_NOT_FOUND', 'Imagem não encontrada no seu portfólio.');
+    if (selected.is_featured && links.filter((link) => link.is_featured).length === 1) return { mediaAssetId, isFeatured: true };
+    await this.gateway.request(`rest/v1/exhibitor_portfolio_media?exhibitor_id=eq.${profile.id}&is_featured=eq.true`, {
+      method: 'PATCH', body: { is_featured: false }
+    });
+    await this.gateway.request(`rest/v1/exhibitor_portfolio_media?id=eq.${selected.id}&exhibitor_id=eq.${profile.id}`, {
+      method: 'PATCH', body: { is_featured: true }
+    });
+    return { mediaAssetId, isFeatured: true };
   }
 
   async removePortfolioMedia(mediaAssetId, principal) {
     validateUuid(mediaAssetId, 'Mídia');
     const profile = await this.profileFor(principal);
-    const links = await this.gateway.request(`rest/v1/exhibitor_portfolio_media?select=media_asset_id&exhibitor_id=eq.${profile.id}&media_asset_id=eq.${mediaAssetId}&limit=1`);
+    const links = await this.gateway.request(`rest/v1/exhibitor_portfolio_media?select=media_asset_id,is_featured&exhibitor_id=eq.${profile.id}&media_asset_id=eq.${mediaAssetId}&limit=1`);
     if (!links[0]) throw new HttpError(404, 'MEDIA_NOT_FOUND', 'Imagem não encontrada na sua galeria.');
     const assets = await this.gateway.request(`rest/v1/media_assets?select=id,storage_bucket,object_path&id=eq.${mediaAssetId}&limit=1`);
     const asset = assets[0];
     if (!asset) throw new HttpError(404, 'MEDIA_NOT_FOUND', 'Imagem não encontrada.');
-    await this.gateway.request(`rest/v1/media_assets?id=eq.${mediaAssetId}`, { method: 'DELETE' });
+    const applicationLinks = await this.gateway.request(`rest/v1/application_media?select=id&media_asset_id=eq.${mediaAssetId}&limit=1`);
+    if (applicationLinks[0]) await this.gateway.request(`rest/v1/exhibitor_portfolio_media?exhibitor_id=eq.${profile.id}&media_asset_id=eq.${mediaAssetId}`, { method: 'DELETE' });
+    else await this.gateway.request(`rest/v1/media_assets?id=eq.${mediaAssetId}`, { method: 'DELETE' });
+    if (links[0].is_featured) {
+      const remaining = await this.gateway.request(`rest/v1/exhibitor_portfolio_media?select=id&exhibitor_id=eq.${profile.id}&order=position.asc&limit=1`);
+      if (remaining[0]) await this.gateway.request(`rest/v1/exhibitor_portfolio_media?id=eq.${remaining[0].id}`, { method: 'PATCH', body: { is_featured: true } });
+    }
+    if (applicationLinks[0]) return { deleted: true, storageDeleted: false };
     const storageDeleted = await this.gateway.deleteStorageObjects(asset.storage_bucket, [asset.object_path])
       .then(() => true).catch(() => false);
     return { deleted: true, storageDeleted };

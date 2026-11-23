@@ -35,6 +35,10 @@ export function createExhibitorsController(service) {
       const [principal, body] = await Promise.all([requirePrincipal(request), readJson(request)]);
       apiView.resource(response, await service.completeUpload(body, principal), 201);
     },
+    async setPortfolioCover(request, response, mediaAssetId) {
+      const principal = await requirePrincipal(request);
+      apiView.resource(response, await service.setPortfolioCover(mediaAssetId, principal));
+    },
     async removePortfolioMedia(request, response, mediaAssetId) {
       const principal = await requirePrincipal(request);
       apiView.resource(response, await service.removePortfolioMedia(mediaAssetId, principal));

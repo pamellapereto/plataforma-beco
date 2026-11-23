@@ -52,6 +52,7 @@ export function createApiRouter(controllers) {
     route('PATCH', '/api/v1/me/exhibitor', (req, res) => exhibitors.updateMine(req, res)),
     route('POST', '/api/v1/me/exhibitor/portfolio/upload-url', (req, res) => exhibitors.uploadUrl(req, res)),
     route('POST', '/api/v1/me/exhibitor/portfolio', (req, res) => exhibitors.completeUpload(req, res)),
+    route('PUT', /^\/api\/v1\/me\/exhibitor\/portfolio\/([0-9a-f-]{36})\/cover$/i, (req, res, _url, id) => exhibitors.setPortfolioCover(req, res, id)),
     route('DELETE', /^\/api\/v1\/me\/exhibitor\/portfolio\/([0-9a-f-]{36})$/i, (req, res, _url, id) => exhibitors.removePortfolioMedia(req, res, id)),
     route('GET', '/api/v1/me/applications', (req, res) => applications.mine(req, res)),
     route('GET', '/api/v1/me/spaces', (req, res) => spaces.mine(req, res)),

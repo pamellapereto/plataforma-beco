@@ -19,7 +19,14 @@ export function validateDecision(input = {}) {
 export function validateMediaReview(input = {}) {
   const status = String(input.status || '').toUpperCase();
   if (!mediaStatuses.has(status)) throw new HttpError(422, 'INVALID_MEDIA_STATUS', 'Decisão sobre a imagem inválida.');
-  return { status, note: note(input.note, status !== 'APPROVED') };
+  const hasExpectedReview = Object.prototype.hasOwnProperty.call(input, 'expectedReviewedAt');
+  const expectedReviewedAt = input.expectedReviewedAt === null || input.expectedReviewedAt === ''
+    ? null
+    : hasExpectedReview && !Number.isNaN(Date.parse(input.expectedReviewedAt))
+      ? new Date(input.expectedReviewedAt).toISOString()
+      : undefined;
+  if (hasExpectedReview && expectedReviewedAt === undefined) throw new HttpError(422, 'INVALID_REVIEW_VERSION', 'A referência da avaliação da imagem é inválida.');
+  return { status, note: note(input.note, status !== 'APPROVED'), hasExpectedReview, expectedReviewedAt };
 }
 
 export function validateExceptionDecision(input = {}) {

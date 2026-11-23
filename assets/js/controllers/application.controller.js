@@ -49,7 +49,6 @@ export async function initializeApplication() {
   let editionId=detail?.application.fair_edition_id||params.get('edicao');
   if(!editionId){const fairs=await api.fairs();const editions=fairs.flatMap(f=>f.editions||[]).filter(e=>e.status==='PUBLISHED'&&e.registration_status==='OPEN');if(editions.length!==1)throw Error('Escolha uma feira com inscrições abertas na página Nossas feiras.');editionId=editions[0].id;}
   if(!applicationId){ const existing=(await api.myApplications()).find(a=>a.fair_edition_id===editionId); if(existing){applicationId=existing.id;detail=await api.request(`/applications/${applicationId}`);history.replaceState(null,'',`inscricao-expositor.html?inscricao=${encodeURIComponent(applicationId)}`);if(!['DRAFT','AWAITING_UPDATE'].includes(detail.application.status)){root.innerHTML=applicationDetailHtml(detail);return;}} }
-  if(!applicationId){const created=await api.request(`/fair-editions/${editionId}/applications`,{method:'POST',body:{requestedSpaceType:null}});applicationId=created.id;history.replaceState(null,'',`inscricao-expositor.html?inscricao=${encodeURIComponent(applicationId)}`);detail=await api.request(`/applications/${applicationId}`);}
   if(detail?.application.status==='DRAFT')await api.request(`/fair-editions/${encodeURIComponent(editionId)}/form`);
   const definition=detail?.form||await api.request(`/fair-editions/${encodeURIComponent(editionId)}/form`);
   let media=detail?.media||[];const fields=definition.sections.flatMap(s=>s.fields);const saved=new Map((detail?.answers||[]).map(a=>[a.field_id,a.value_json]));
@@ -62,8 +61,18 @@ export async function initializeApplication() {
   const valueOf=f=>{const control=form.elements[`field_${f.id}`];if(['IMAGE','FILE'].includes(f.type))return null;if(f.type==='CHECKBOX')return control.checked;if(f.type==='MULTISELECT')return [...control.selectedOptions].map(o=>o.value);return control.value;};
   const conditions=()=>{const values=new Map(fields.map(f=>[f.field_key,valueOf(f)]));for(const f of fields){const wrapper=form.querySelector(`[data-question="${f.id}"]`);const input=wrapper.querySelector('[data-question-input]');input.id=`question_${f.id}`;const visible=conditionApplies(f,values);wrapper.hidden=!visible;input.disabled=!visible;}};
   form.addEventListener('change',conditions);conditions();
-  const renderMedia=()=>{root.querySelector('[data-saved-media]').innerHTML=media.map(m=>`<article><img src="${h(m.url)}" alt="${h(m.original_filename)}"><p>${h(m.original_filename)}</p>${status(m.review_status)}<p>${h(m.curator_note||'')}</p><button class="btn btn-small btn-secondary" type="button" data-remove-media="${h(m.id)}">Remover imagem</button></article>`).join('')||'<p>Nenhum arquivo enviado.</p>';};renderMedia();
-  root.addEventListener('click',e=>{const button=e.target.closest('[data-remove-media]');if(!button)return;busy(button,async()=>{await api.request(`/applications/${applicationId}/media/${button.dataset.removeMedia}`,{method:'DELETE'});media=media.filter(m=>m.id!==button.dataset.removeMedia);renderMedia();},feedback);});
+  const renderMedia=()=>{root.querySelector('[data-saved-media]').innerHTML=media.map(m=>`<article><img src="${h(m.url)}" alt="${h(m.original_filename)}"><p>${h(m.original_filename)}</p>${status(m.review_status)}<p>${h(m.curator_note||'')}</p>${detail?.application.status==='AWAITING_UPDATE'&&['CHANGES_REQUESTED','REJECTED'].includes(m.review_status)?`<button class="btn btn-small btn-primary" type="button" data-replace-media="${h(m.id)}">Substituir imagem</button>`:''}${detail?.application.status==='DRAFT'?`<button class="btn btn-small btn-secondary" type="button" data-remove-media="${h(m.id)}">Remover imagem</button>`:''}</article>`).join('')||'<p>Nenhum arquivo enviado.</p>';};renderMedia();
+  root.addEventListener('click',e=>{
+    const replaceButton=e.target.closest('[data-replace-media]');
+    if(replaceButton){
+      const current=media.find(item=>item.id===replaceButton.dataset.replaceMedia);if(!current)return;
+      const picker=document.createElement('input');picker.type='file';picker.accept='image/jpeg,image/png,image/webp';
+      picker.addEventListener('change',()=>{const file=picker.files?.[0];if(!file)return;busy(replaceButton,async()=>{await api.upload(file,`/applications/${applicationId}/media`,{fieldId:current.field_id,role:current.role,replaceMediaId:current.id});media=(await api.request(`/applications/${applicationId}`)).media;renderMedia();},feedback);},{once:true});
+      picker.click();return;
+    }
+    const button=e.target.closest('[data-remove-media]');if(!button)return;
+    busy(button,async()=>{await api.request(`/applications/${applicationId}/media/${button.dataset.removeMedia}`,{method:'DELETE'});media=media.filter(m=>m.id!==button.dataset.removeMedia);renderMedia();},feedback);
+  });
   let saving=false;
   form.addEventListener('submit',async event=>{
     event.preventDefault();if(saving)return;const draft=event.submitter?.hasAttribute('data-save-draft');if(!draft&&!form.reportValidity())return;
