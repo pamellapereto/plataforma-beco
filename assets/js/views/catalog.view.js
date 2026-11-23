@@ -10,6 +10,10 @@ function date(value, options = {}) {
   return new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', day: '2-digit', month: 'long', year: 'numeric', ...options }).format(new Date(value));
 }
 
+function dateTime(value) {
+  return date(value, { hour: '2-digit', minute: '2-digit' });
+}
+
 function cover(edition) {
   return edition?.media?.find(item => item.role === 'COVER')?.url || edition?.media?.[0]?.url || fallbackFairImage;
 }
@@ -24,7 +28,25 @@ function latestEdition(fair) {
 }
 
 function statusLabel(status) {
-  return ({ REGISTRATION_OPEN: 'Inscricoes abertas', PUBLISHED: 'Programacao publicada', CURATION: 'Em curadoria', CONFIRMED: 'Confirmada', FINISHED: 'Realizada' })[status] || 'Em breve';
+  return ({ PUBLISHED: 'Evento confirmado' })[status] || 'Em breve';
+}
+
+function registrationState(edition, now = Date.now()) {
+  if (!edition || edition.status !== 'PUBLISHED') return null;
+  if (['UPCOMING', 'OPEN', 'CLOSED'].includes(edition.registration_status)) return edition.registration_status;
+  const opensAt = new Date(edition.registration_opens_at).getTime();
+  const closesAt = new Date(edition.registration_closes_at).getTime();
+  if (Number.isFinite(opensAt) && now < opensAt) return 'UPCOMING';
+  if (Number.isFinite(closesAt) && now > closesAt) return 'CLOSED';
+  return Number.isFinite(opensAt) && Number.isFinite(closesAt) ? 'OPEN' : 'CLOSED';
+}
+
+function registrationLabel(edition) {
+  return ({ UPCOMING: 'Evento confirmado', OPEN: 'Inscrições abertas', CLOSED: 'Inscrições encerradas' })[registrationState(edition)] || statusLabel(edition?.status);
+}
+
+function registrationPeriod(edition) {
+  return `Inscrições de ${dateTime(edition?.registration_opens_at)} até ${dateTime(edition?.registration_closes_at)}.`;
 }
 
 export function loading(container, message = 'Carregando informacoes...') {
@@ -36,14 +58,26 @@ export function error(container, message) {
 }
 
 export function renderFairs(container, fairs, limit) {
-  const visible = limit ? fairs.slice(0, limit) : fairs;
+  const now = Date.now();
+  const eligible = fairs.flatMap(fair => (fair.editions || [])
+    .filter(edition => edition.status === 'PUBLISHED' && new Date(edition.ends_at).getTime() > now)
+    .map(edition => ({ fair, edition })))
+    .sort((left,right)=>new Date(left.edition.starts_at)-new Date(right.edition.starts_at));
+  const visible = limit ? eligible.slice(0, limit) : eligible;
   if (!visible.length) return error(container, 'Nenhuma feira publicada no momento.');
-  container.innerHTML = visible.map(fair => {
-    const edition = latestEdition(fair);
+  container.innerHTML = visible.map(({fair,edition}) => {
     const href = edition ? `feira-beco.html?edicao=${encodeURIComponent(edition.slug)}` : 'feiras.html';
-    const title = fair.name || edition?.title || 'Feira';
-    return `<article class="fair-card"><img src="${escapeHtml(cover(edition))}" alt="${escapeHtml(edition?.title || title)}" loading="lazy"><div class="fair-card-content"><span class="tag">${escapeHtml(edition?.status === 'REGISTRATION_OPEN' && ((edition.registration_closes_at && new Date(edition.registration_closes_at)<new Date()) || new Date(edition.ends_at)<new Date()) ? 'Inscrições encerradas' : statusLabel(edition?.status))}</span><h3>${escapeHtml(title)}</h3><p>${escapeHtml(edition ? `${date(edition.starts_at)} · ${edition.location?.city || 'Sorocaba'}` : fair.short_description || '')}</p><a class="card-link" href="${href}">Ver feira &rarr;</a></div></article>`;
+    const title = edition?.title || 'Edição da feira';
+    return `<article class="fair-card"><img src="${escapeHtml(cover(edition))}" alt="${escapeHtml(edition?.title || title)}" loading="lazy"><div class="fair-card-content"><span class="tag">${escapeHtml(registrationLabel(edition))}</span><h3>${escapeHtml(title)}</h3><p>${escapeHtml(edition ? `${date(edition.starts_at)} · ${edition.location?.city || 'Sorocaba'}` : fair.short_description || '')}</p><a class="card-link" href="${href}">Ver feira &rarr;</a></div></article>`;
   }).join('');
+  [...container.querySelectorAll('.fair-card')].forEach((card,index)=>{
+    const edition=visible[index].edition;
+    const tag=card.querySelector('.tag');
+    if(tag)tag.textContent=registrationLabel(edition);
+    const eventPeriod=card.querySelector('.fair-card-content > p');
+    if(eventPeriod&&edition)eventPeriod.textContent=`De ${dateTime(edition.starts_at)} até ${dateTime(edition.ends_at)} · ${edition.location?.city||'Sorocaba'}`;
+    if(edition?.registration_opens_at&&edition?.registration_closes_at){const period=document.createElement('p');period.className='fair-registration-period';period.textContent=registrationPeriod(edition);card.querySelector('.fair-card-content')?.insertBefore(period,card.querySelector('.card-link'));}
+  });
 }
 
 export function renderExhibitors(container, exhibitors, limit) {
@@ -55,8 +89,8 @@ export function renderExhibitors(container, exhibitors, limit) {
 export function renderMetrics(container, fairs, exhibitors) {
   const editions = fairs.flatMap(fair => fair.editions || []);
   const upcoming = editions.filter(item => new Date(item.ends_at) >= new Date()).length;
-  const open = editions.filter(item => item.status === 'REGISTRATION_OPEN' && new Date(item.ends_at) > new Date() && (!item.registration_opens_at || new Date(item.registration_opens_at)<=new Date()) && (!item.registration_closes_at || new Date(item.registration_closes_at)>=new Date())).length;
-  container.innerHTML = `<article><strong>${exhibitors.length}</strong><span>expositores publicos</span></article><article><strong>${upcoming}</strong><span>edicoes anunciadas</span></article><article><strong>${open}</strong><span>feiras com inscricoes abertas</span></article><article><strong>${fairs.length}</strong><span>feiras com identidades proprias</span></article>`;
+  const open = editions.filter(item => registrationState(item) === 'OPEN').length;
+  container.innerHTML = `<article><strong>${exhibitors.length}</strong><span>expositores publicos</span></article><article><strong>${upcoming}</strong><span>edicoes anunciadas</span></article><article><strong>${open}</strong><span>feiras com inscricoes abertas</span></article>`;
 }
 
 export function renderCategoryOptions(select, categories) {
@@ -70,8 +104,29 @@ function evaluationMetrics(summary) {
 
 export function renderFairDetail(main, edition, evaluationSummary, organizationSummary) {
   const exhibitors = edition.confirmedExhibitors || [];
-  const registrationOpen = edition.status === 'REGISTRATION_OPEN' && new Date(edition.ends_at) > new Date() && (!edition.registration_opens_at || new Date(edition.registration_opens_at) <= new Date()) && (!edition.registration_closes_at || new Date(edition.registration_closes_at) >= new Date());
-  main.innerHTML = `<section class="fair-landing"><div class="fair-landing-media"><img src="${escapeHtml(cover(edition))}" alt="${escapeHtml(edition.title)}"></div><div><span class="eyebrow">${escapeHtml(edition.edition_number ? `${edition.edition_number}º edicao` : edition.fair.name)}</span><h1>${escapeHtml(edition.title)}</h1><p>${escapeHtml(edition.public_description)}</p><div class="event-meta"><div><span>Data</span><b>${escapeHtml(date(edition.starts_at))}</b></div><div><span>Local</span><b>${escapeHtml(`${edition.location?.name || edition.location?.neighborhood || 'Sorocaba'} · ${edition.location?.city || 'Sorocaba'}`)}</b></div><div><span>Curadoria</span><b>Equipe da Associacao</b></div><div><span>Inscricoes</span><b>${escapeHtml(registrationOpen ? `Abertas ate ${date(edition.registration_closes_at)}` : (edition.status === 'REGISTRATION_OPEN' ? 'Inscrições encerradas' : statusLabel(edition.status)))}</b></div></div><div class="hero-actions">${registrationOpen ? `<a class="btn btn-primary" href="inscricao-expositor.html?edicao=${encodeURIComponent(edition.id)}">Quero participar</a>` : ''}<a class="btn btn-outline" href="#confirmados">Ver confirmados</a></div></div></section><section class="section" id="confirmados"><div class="section-heading"><div><span class="eyebrow">Proxima edicao</span><h2>Expositores confirmados</h2></div><p>Lista atualizada diretamente pela curadoria.</p></div><div class="confirmed-list">${exhibitors.length ? exhibitors.map(item => `<article class="confirmed-person"><img src="${escapeHtml(portfolioCover(item))}" alt="${escapeHtml(item.display_name)}"><b>${escapeHtml(item.display_name)}</b><span>${escapeHtml(item.city || '')}</span><a class="card-link" href="expositor.html?id=${encodeURIComponent(item.id)}">Ver perfil</a></article>`).join('') : '<div class="data-state">Os expositores confirmados aparecerao aqui.</div>'}</div></section><section class="section" hidden><div class="section-heading"><div><span class="eyebrow">Avaliação dos participantes</span><h2>Como foi esta edição</h2></div><p>Médias publicadas a partir de três respostas elegíveis.</p></div><div class="dash-stats">${evaluationMetrics(evaluationSummary)}</div><h3>A Associação como produtora</h3><div class="dash-stats">${evaluationMetrics(organizationSummary)}</div></section><section class="section"><div class="section-heading"><div><span class="eyebrow">Endereco</span><h2>Onde a feira acontece</h2></div><p>${escapeHtml([edition.location?.address_line, edition.location?.neighborhood, edition.location?.city, edition.location?.state].filter(Boolean).join(' · '))}</p></div><div data-event-map></div></section>`;
+  const registrationOpen = registrationState(edition) === 'OPEN';
+  main.innerHTML = `<section class="fair-landing"><div class="fair-landing-media"><img src="${escapeHtml(cover(edition))}" alt="${escapeHtml(edition.title)}"></div><div><span class="eyebrow">${escapeHtml(edition.edition_number ? `${edition.edition_number}º edicao` : edition.fair.name)}</span><h1>${escapeHtml(edition.title)}</h1><p>${escapeHtml(edition.public_description)}</p><div class="event-meta"><div><span>Data</span><b>${escapeHtml(date(edition.starts_at))}</b></div><div><span>Local</span><b>${escapeHtml(`${edition.location?.name || edition.location?.neighborhood || 'Sorocaba'} · ${edition.location?.city || 'Sorocaba'}`)}</b></div><div><span>Curadoria</span><b>Equipe da Associacao</b></div><div><span>Inscricoes</span><b>${escapeHtml(registrationOpen ? `Abertas ate ${date(edition.registration_closes_at)}` : (edition.status === 'REGISTRATION_OPEN' ? 'Inscrições encerradas' : statusLabel(edition.status)))}</b></div></div><div class="hero-actions">${registrationOpen ? `<a class="btn btn-primary" href="inscricao-expositor.html?edicao=${encodeURIComponent(edition.id)}">Quero participar</a>` : ''}<a class="btn btn-outline" href="#confirmados">Ver confirmados</a></div></div></section><section class="section" id="confirmados"><div class="section-heading"><div><span class="eyebrow">Proxima edicao</span><h2>Expositores confirmados</h2></div><p>Lista atualizada diretamente pela curadoria.</p></div><div class="confirmed-list">${exhibitors.length ? exhibitors.map(item => `<article class="confirmed-person"><img src="${escapeHtml(portfolioCover(item))}" alt="${escapeHtml(item.display_name)}"><b>${escapeHtml(item.display_name)}</b><span>${escapeHtml(item.city || '')}</span><a class="card-link" href="expositor.html?id=${encodeURIComponent(item.id)}">Ver perfil</a></article>`).join('') : '<div class="data-state">Os expositores confirmados aparecerao aqui.</div>'}</div></section><section class="section" hidden><div class="section-heading"><div><span class="eyebrow">Avaliação dos participantes</span><h2>Como foi esta edição</h2></div><p>Médias publicadas a partir de três respostas elegíveis.</p></div><div class="dash-stats">${evaluationMetrics(evaluationSummary)}</div><h3>A Associação como produtora</h3><div class="dash-stats">${evaluationMetrics(organizationSummary)}</div></section><section class="section edition-location"><div class="section-heading"><div><span class="eyebrow">Endereço</span><h2>Onde a feira acontece</h2></div></div><p class="edition-location-address">${escapeHtml([edition.location?.address_line,edition.location?.address_number,edition.location?.complement,edition.location?.neighborhood,edition.location?.city,edition.location?.state].filter(Boolean).join(', '))}</p><div data-event-map></div></section>`;
+  const confirmedSection=main.querySelector('#confirmados');
+  const confirmedEyebrow=confirmedSection?.querySelector('.section-heading .eyebrow');
+  if(confirmedEyebrow)confirmedEyebrow.textContent='Veja quem estará esperando por você nesta edição';
+  confirmedSection?.querySelector(':scope > .section-heading > p')?.remove();
+  if(!exhibitors.length){
+    const emptyConfirmed=confirmedSection?.querySelector('.data-state');
+    const state=registrationState(edition);
+    if(emptyConfirmed&&state==='UPCOMING')emptyConfirmed.textContent=`Aguarde. As inscrições para tentar fazer parte dos expositores confirmados abrirão em ${dateTime(edition.registration_opens_at)} e seguirão até ${dateTime(edition.registration_closes_at)}.`;
+    else if(emptyConfirmed&&state==='OPEN')emptyConfirmed.textContent=`Seleção em andamento. As inscrições estão abertas até ${dateTime(edition.registration_closes_at)}. Os expositores confirmados serão apresentados aqui após a conclusão da curadoria.`;
+    else if(emptyConfirmed)emptyConfirmed.textContent='Aguarde a divulgação dos expositores confirmados desta edição.';
+  }
+  const locationAddress=main.querySelector('.edition-location-address');
+  if(locationAddress&&edition.location?.postal_code)locationAddress.textContent+=`, CEP ${edition.location.postal_code}`;
+  const galleryImages=(edition.media||[]).filter(item=>item.role==='GALLERY');
+  if(galleryImages.length){const gallery=document.createElement('section');gallery.className='section edition-gallery';gallery.innerHTML=`<div class="section-heading"><div><span class="eyebrow">Galeria</span><h2>Imagens desta edição</h2></div><p>Conheça os espaços, produtos e momentos preparados para a feira.</p></div><div class="edition-gallery-shell"><button type="button" class="edition-gallery-arrow previous" aria-label="Imagens anteriores">‹</button><div class="edition-gallery-track">${galleryImages.map((item,index)=>`<button type="button" class="edition-gallery-slide" data-gallery-image="${index}" aria-label="Ampliar: ${escapeHtml(item.altText||`Imagem ${index+1}`)}"><img src="${escapeHtml(item.url)}" alt="${escapeHtml(item.altText||`Imagem ${index+1} da edição`)}" loading="lazy"></button>`).join('')}</div><button type="button" class="edition-gallery-arrow next" aria-label="Próximas imagens">›</button></div>`;main.querySelector('#confirmados')?.before(gallery);const track=gallery.querySelector('.edition-gallery-track');let timer;const advance=direction=>{const distance=Math.max(280,track.clientWidth*.82)*direction;if(direction>0&&track.scrollLeft+track.clientWidth>=track.scrollWidth-8)track.scrollTo({left:0,behavior:'smooth'});else track.scrollBy({left:distance,behavior:'smooth'});};const start=()=>{clearInterval(timer);timer=setInterval(()=>advance(1),5000);};const pause=()=>clearInterval(timer);gallery.querySelector('.previous').onclick=()=>{advance(-1);start();};gallery.querySelector('.next').onclick=()=>{advance(1);start();};['pointerenter','focusin','touchstart'].forEach(type=>gallery.addEventListener(type,pause));['pointerleave','focusout','touchend'].forEach(type=>gallery.addEventListener(type,start));gallery.querySelectorAll('[data-gallery-image]').forEach(button=>button.onclick=()=>{pause();const item=galleryImages[Number(button.dataset.galleryImage)];const lightbox=document.createElement('dialog');lightbox.className='gallery-lightbox';lightbox.innerHTML=`<button type="button" aria-label="Fechar">×</button><img src="${escapeHtml(item.url)}" alt="${escapeHtml(item.altText||'Imagem ampliada da edição')}">`;document.body.append(lightbox);lightbox.querySelector('button').onclick=()=>lightbox.close();lightbox.addEventListener('click',event=>{if(event.target===lightbox)lightbox.close();});lightbox.addEventListener('close',()=>{lightbox.remove();start();},{once:true});lightbox.showModal();});start();}
+  const eventMetaItems=[...main.querySelectorAll('.event-meta > div')];
+  const eventDateMeta=eventMetaItems.find(item=>item.querySelector('span')?.textContent.trim()==='Data')?.querySelector('b');
+  if(eventDateMeta)eventDateMeta.textContent=`De ${dateTime(edition.starts_at)} até ${dateTime(edition.ends_at)}`;
+  eventMetaItems.find(item=>item.querySelector('span')?.textContent.trim()==='Curadoria')?.remove();
+  const registrationMeta=eventMetaItems.find(item=>item.querySelector('span')?.textContent.trim()==='Inscricoes')?.querySelector('b');
+  if(registrationMeta){const state=registrationState(edition);registrationMeta.textContent=state==='OPEN'?`Inscrições abertas · ${registrationPeriod(edition)}`:state==='CLOSED'?`Inscrições encerradas · ${registrationPeriod(edition)}`:`Evento confirmado · ${registrationPeriod(edition)}`;}
   document.title = `${edition.title} | BECO`;
 }
 

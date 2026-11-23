@@ -42,6 +42,12 @@ function selectedColumns(raw) {
 
 function decode(value) { return decodeURIComponent(String(value).replace(/\+/g, ' ')); }
 
+const jsonValueKeys = new Set(['history_paragraphs', 'facts', 'required_consents', 'validation', 'conditional_logic', 'value_json', 'social_links', 'checks', 'p_definition', 'p_consents']);
+function databaseValue(key, value) {
+  if (value !== null && value !== undefined && jsonValueKeys.has(key) && typeof value === 'object') return JSON.stringify(value);
+  return value;
+}
+
 function whereClause(params, values) {
   const clauses = [];
   const ignored = new Set(['select', 'order', 'limit', 'offset', 'on_conflict']);
@@ -151,7 +157,7 @@ export async function postgresRequest(path, { method = 'GET', body, headers = {}
       if (!rows.length) return [];
       const columns = [...new Set(rows.flatMap(Object.keys))];
       const insertValues = [];
-      const tuples = rows.map(row => `(${columns.map(column => { insertValues.push(row[column] ?? null); return `$${insertValues.length}`; }).join(', ')})`);
+      const tuples = rows.map(row => `(${columns.map(column => { insertValues.push(databaseValue(column, row[column] ?? null)); return `$${insertValues.length}`; }).join(', ')})`);
       const conflict = url.searchParams.get('on_conflict');
       const updateColumns = conflict ? columns.filter(c => !conflict.split(',').includes(c)) : [];
       const conflictSql = conflict ? ` ON CONFLICT (${conflict.split(',').map(identifier).join(', ')}) ${updateColumns.length ? `DO UPDATE SET ${updateColumns.map(c => `${identifier(c)}=EXCLUDED.${identifier(c)}`).join(', ')}` : 'DO NOTHING'}` : '';
@@ -161,7 +167,7 @@ export async function postgresRequest(path, { method = 'GET', body, headers = {}
     if (method === 'PATCH') {
       const where = whereClause(url.searchParams, values);
       const entries = Object.entries(body || {});
-      const set = entries.map(([key, value]) => { values.push(value); return `${identifier(key)} = $${values.length}`; }).join(', ');
+      const set = entries.map(([key, value]) => { values.push(databaseValue(key, value)); return `${identifier(key)} = $${values.length}`; }).join(', ');
       result = await databasePool().query(`UPDATE public.${table} SET ${set}${where}${returning}`, values);
       return result.rows;
     }

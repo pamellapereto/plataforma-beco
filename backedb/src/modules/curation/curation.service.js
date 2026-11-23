@@ -237,7 +237,7 @@ export class CurationService {
       this.gateway.request('rest/v1/applications?select=id,status,exhibitor_id,fair_edition_id'),
       this.gateway.request('rest/v1/media_assets?select=id,review_status'),
       this.gateway.request('rest/v1/application_exception_requests?select=id,status'),
-      this.gateway.request('rest/v1/fair_editions?select=id,status'),
+      this.gateway.request('rest/v1/fair_editions?select=id,status,registration_opens_at,registration_closes_at'),
       this.gateway.request('rest/v1/exhibitors?select=id,display_name,status'),
       this.gateway.request('rest/v1/exhibitor_category_links?select=exhibitor_id,category_id'),
       this.gateway.request('rest/v1/exhibitor_categories?select=id,name,slug&is_active=eq.true')
@@ -266,7 +266,12 @@ export class CurationService {
       applicationsInReview: applications.filter((item) => ['SUBMITTED', 'PHOTO_REVIEW', 'UNDER_REVIEW'].includes(item.status)).length,
       mediaPending: media.filter((item) => item.review_status === 'PENDING').length,
       exceptionRequestsPending: exceptions.filter((item) => item.status === 'PENDING').length,
-      registrationsOpen: editions.filter((item) => item.status === 'REGISTRATION_OPEN').length,
+      registrationsOpen: editions.filter((item) => {
+        const now = Date.now();
+        return item.status === 'PUBLISHED'
+          && new Date(item.registration_opens_at).getTime() <= now
+          && new Date(item.registration_closes_at).getTime() >= now;
+      }).length,
       exhibitorsApproved: exhibitors.filter((item) => item.status === 'APPROVED').length,
       applicationStatus,
       exhibitorCategories,

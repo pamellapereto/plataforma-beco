@@ -35,6 +35,11 @@ export async function initializeAuth(page) {
   }
   const link = document.querySelector('.header-actions a[href="login.html"]');
   if (link && session?.account) { link.textContent = 'Minha área'; link.href = session.account.role === 'BECO_ADMIN' ? 'curadoria.html' : 'area-expositor.html'; }
+  if (session?.account?.role === 'BECO_ADMIN') {
+    document.querySelectorAll('.header-actions a[href^="inscricao-expositor.html"]').forEach(action => {
+      if (action.textContent.trim().toLocaleLowerCase('pt-BR') === 'quero expor') action.remove();
+    });
+  }
   const sidebar = document.querySelector('.private-sidebar');
   if (sidebar && session) {
     const button=document.createElement('button');button.className='private-logout';button.textContent='Sair';button.type='button';

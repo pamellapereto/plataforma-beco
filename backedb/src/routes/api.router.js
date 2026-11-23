@@ -70,6 +70,7 @@ export function createApiRouter(controllers) {
     route('PATCH', /^\/api\/v1\/admin\/fairs\/([0-9a-f-]{36})$/i, (req, res, _url, id) => fairs.updateFair(req, res, id)),
     route('DELETE', /^\/api\/v1\/admin\/fairs\/([0-9a-f-]{36})$/i, (req, res, _url, id) => fairs.deleteFair(req, res, id)),
     route('POST', /^\/api\/v1\/admin\/fairs\/([0-9a-f-]{36})\/editions$/i, (req, res, _url, id) => fairs.createEdition(req, res, id)),
+    route('GET', /^\/api\/v1\/admin\/fair-editions\/([0-9a-f-]{36})\/publication-readiness$/i, (req, res, _url, id) => fairs.publicationReadiness(req, res, id)),
     route('PATCH', /^\/api\/v1\/admin\/fair-editions\/([0-9a-f-]{36})$/i, (req, res, _url, id) => fairs.updateEdition(req, res, id)),
     route('DELETE', /^\/api\/v1\/admin\/fair-editions\/([0-9a-f-]{36})$/i, (req, res, _url, id) => fairs.deleteEdition(req, res, id)),
     route('PATCH', /^\/api\/v1\/admin\/locations\/([0-9a-f-]{36})$/i, (req, res, _url, id) => fairs.updateLocation(req, res, id)),

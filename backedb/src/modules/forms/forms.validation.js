@@ -30,8 +30,8 @@ export function validateFormDefinition(input = {}) {
   const keys = new Set();
   const consentKeys = new Set();
   const sourceConsents = input.consents === undefined ? [] : input.consents;
-  if (!Array.isArray(sourceConsents) || sourceConsents.length > 20 || (input.isPublished === true && !sourceConsents.length)) {
-    throw new HttpError(422, 'INVALID_FORM_CONSENTS', 'Um formulário publicado deve possuir entre 1 e 20 termos.');
+  if (!Array.isArray(sourceConsents) || sourceConsents.length > 20) {
+    throw new HttpError(422, 'INVALID_FORM_CONSENTS', 'O formulário pode possuir até 20 termos.');
   }
   const consents = sourceConsents.map((consent) => {
     const key = String(consent.key || '').trim();
@@ -80,9 +80,9 @@ export function validateFormDefinition(input = {}) {
     };
   });
   return {
-    title: text(input.title, 'Título do formulário', 180),
+    title: text(input.title, 'Título do formulário', 280),
     introduction: optionalText(input.introduction, 5000),
-    isPublished: input.isPublished === true,
+    isPublished: true,
     consents,
     sections
   };

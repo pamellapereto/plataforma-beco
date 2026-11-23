@@ -30,9 +30,19 @@ function publicMediaUrl(asset) {
   return `${base}/storage/v1/object/public/${encodeURIComponent(asset.storage_bucket)}/${path}`;
 }
 
+function registrationStatus(edition, now = Date.now()) {
+  if (edition.status !== 'PUBLISHED') return null;
+  const opensAt = new Date(edition.registration_opens_at).getTime();
+  const closesAt = new Date(edition.registration_closes_at).getTime();
+  if (Number.isFinite(opensAt) && now < opensAt) return 'UPCOMING';
+  if (Number.isFinite(closesAt) && now > closesAt) return 'CLOSED';
+  return Number.isFinite(opensAt) && Number.isFinite(closesAt) ? 'OPEN' : 'CLOSED';
+}
+
 export class FairsService {
-  constructor(gateway = supabaseGateway) {
+  constructor(gateway = supabaseGateway, formsService = null) {
     this.gateway = gateway;
+    this.forms = formsService;
   }
 
   async postalCode(value, principal) {
@@ -105,7 +115,7 @@ export class FairsService {
     const fairs = await this.gateway.request(`rest/v1/fairs?select=${fairSelect}${fairFilter}&order=name.asc`);
     if (!fairs.length) return [];
     const fairIds = fairs.map((fair) => fair.id);
-    const statusFilter = admin ? '' : '&status=not.in.(DRAFT,CANCELLED)';
+    const statusFilter = admin ? '' : `&status=eq.PUBLISHED&ends_at=gt.${encodeURIComponent(new Date().toISOString())}`;
     let editions = await this.gateway.request(`rest/v1/fair_editions?select=id,fair_id,location_id,title,slug,edition_number,public_description,starts_at,ends_at,registration_opens_at,registration_closes_at,exhibitor_capacity,status&fair_id=in.(${idsFilter(fairIds)})${statusFilter}&order=starts_at.desc`);
     const locationIds = [...new Set(editions.map((edition) => edition.location_id))];
     const locations = locationIds.length
@@ -116,6 +126,7 @@ export class FairsService {
     const mediaByEdition = await this.publicMediaMap(editions.map((edition) => edition.id));
     const editionsByFair = groupBy(editions.map((edition) => ({
       ...edition,
+      registration_status: registrationStatus(edition),
       location: locationById.get(edition.location_id) || null,
       media: mediaByEdition.get(edition.id) || []
     })), 'fair_id');
@@ -127,7 +138,7 @@ export class FairsService {
 
   async publicEdition(slug) {
     const editionFields = 'id,fair_id,location_id,title,slug,edition_number,public_description,visitor_guidance,starts_at,ends_at,registration_opens_at,registration_closes_at,exhibitor_capacity,status';
-    const editions = await this.gateway.request(`rest/v1/fair_editions?select=${editionFields}&slug=eq.${encodeURIComponent(slug)}&status=not.in.(DRAFT,CANCELLED)&limit=1`);
+    const editions = await this.gateway.request(`rest/v1/fair_editions?select=${editionFields}&slug=eq.${encodeURIComponent(slug)}&status=eq.PUBLISHED&limit=1`);
     const edition = editions[0];
     if (!edition) throw new HttpError(404, 'FAIR_EDITION_NOT_FOUND', 'Edição não encontrada.');
     const [fairs, locations, categoriesByFair, mediaByEdition] = await Promise.all([
@@ -159,6 +170,7 @@ export class FairsService {
     }));
     return {
       ...edition,
+      registration_status: registrationStatus(edition),
       fair: fairs[0],
       location: locations[0] || null,
       categories: categoriesByFair.get(edition.fair_id) || [],
@@ -311,19 +323,23 @@ export class FairsService {
     const fairs = await this.gateway.request(`rest/v1/fairs?select=id&id=eq.${current.fair_id}&organization_id=eq.${principal.organizationId}&limit=1`);
     if (!fairs[0]) throw new HttpError(404, 'FAIR_EDITION_NOT_FOUND', 'Edição não encontrada.');
     const patch = validateEditionPatch(input, current);
-    if (patch.status === 'REGISTRATION_OPEN') {
-      const forms = await this.gateway.request(`rest/v1/registration_forms?select=id&fair_edition_id=eq.${editionId}&is_published=eq.true&limit=1`);
-      if (!forms[0]) throw new HttpError(409, 'FORM_REQUIRED', 'Publique o formulário antes de abrir as inscrições.');
-      const opensAt = patch.registration_opens_at === undefined ? current.registration_opens_at : patch.registration_opens_at;
-      const closesAt = patch.registration_closes_at === undefined ? current.registration_closes_at : patch.registration_closes_at;
-      if (!opensAt || !closesAt) {
-        throw new HttpError(409, 'REGISTRATION_DATES_REQUIRED', 'Defina a abertura e o encerramento das inscrições.');
-      }
+    if (current.status !== 'PUBLISHED' && patch.status === 'PUBLISHED') {
+      if (!this.forms) throw new HttpError(500, 'FORM_VALIDATION_UNAVAILABLE', 'Não foi possível validar o formulário da edição.');
+      await this.forms.assertReadyForPublication(editionId);
     }
     const rows = await this.gateway.request(`rest/v1/fair_editions?id=eq.${editionId}`, {
       method: 'PATCH', headers: { Prefer: 'return=representation' }, body: { ...patch, updated_at: new Date().toISOString() }
     });
     return rows[0];
+  }
+
+  async publicationReadiness(editionId, principal) {
+    requireBecoAdmin(principal);
+    validateUuid(editionId, 'Edição');
+    if (!this.forms) throw new HttpError(500, 'FORM_VALIDATION_UNAVAILABLE', 'Não foi possível validar o formulário da edição.');
+    const edition = await this.forms.assertEditionAdmin(editionId, principal);
+    const issues = await this.forms.publicationIssues(editionId);
+    return { editionId: edition.id, ready: issues.length === 0, issues };
   }
 
   async deleteEdition(editionId, principal) {

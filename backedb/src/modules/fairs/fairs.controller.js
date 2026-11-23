@@ -39,6 +39,10 @@ export function createFairsController(service) {
       const [principal, body] = await Promise.all([requirePrincipal(request), readJson(request)]);
       apiView.resource(response, await service.updateEdition(editionId, body, principal));
     },
+    async publicationReadiness(request, response, editionId) {
+      const principal = await requirePrincipal(request);
+      apiView.resource(response, await service.publicationReadiness(editionId, principal));
+    },
     async deleteEdition(request, response, editionId) {
       const principal = await requirePrincipal(request);
       apiView.resource(response, await service.deleteEdition(editionId, principal));

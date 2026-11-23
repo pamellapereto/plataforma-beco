@@ -28,6 +28,10 @@ const page = document.body.dataset.page || ({
   'editar-sobre.html': 'about-editor'
 })[filename] || '';
 
+if (['home-editor','about-editor'].includes(page) && !document.querySelector('link[href="assets/dashboard-ui.css"]')) {
+  const dashboardStylesheet=document.createElement('link');dashboardStylesheet.rel='stylesheet';dashboardStylesheet.href='assets/dashboard-ui.css';document.head.append(dashboardStylesheet);
+}
+
 if (!document.querySelector('link[href="assets/workflows.css"]')) { const link=document.createElement('link');link.rel='stylesheet';link.href='assets/workflows.css';document.head.append(link); }
 const canInitialize = await initializeAuth(page);
 if (canInitialize !== false) {

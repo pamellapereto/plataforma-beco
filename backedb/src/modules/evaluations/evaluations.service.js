@@ -148,7 +148,7 @@ export class EvaluationsService {
   }
 
   async publicEditionSummary(slug) {
-    const editions = await this.gateway.request(`rest/v1/fair_editions?select=id,fair_id,title,ends_at,status&slug=eq.${encodeURIComponent(slug)}&status=not.in.(DRAFT,CANCELLED)&limit=1`);
+    const editions = await this.gateway.request(`rest/v1/fair_editions?select=id,fair_id,title,ends_at,status&slug=eq.${encodeURIComponent(slug)}&status=eq.PUBLISHED&limit=1`);
     const edition = editions[0];
     if (!edition) throw new HttpError(404, 'FAIR_EDITION_NOT_FOUND', 'Edição não encontrada.');
     const fairs = await this.gateway.request(`rest/v1/fairs?select=id,organization_id,is_active&id=eq.${edition.fair_id}&is_active=eq.true&limit=1`);
@@ -165,7 +165,7 @@ export class EvaluationsService {
     if (!organizations[0]) throw new HttpError(404, 'ORGANIZATION_NOT_FOUND', 'Associação não encontrada.');
     const fairs = await this.gateway.request(`rest/v1/fairs?select=id&organization_id=eq.${organizationId}&is_active=eq.true`);
     if (!fairs.length) return { organization: organizations[0], responseCount: 0, metrics: summarize([]).metrics };
-    const editions = await this.gateway.request(`rest/v1/fair_editions?select=id&fair_id=in.(${ids(fairs.map((item) => item.id))})&status=not.in.(DRAFT,CANCELLED)`);
+    const editions = await this.gateway.request(`rest/v1/fair_editions?select=id&fair_id=in.(${ids(fairs.map((item) => item.id))})&status=eq.PUBLISHED`);
     if (!editions.length) return { organization: organizations[0], responseCount: 0, metrics: summarize([]).metrics };
     const applications = await this.gateway.request(`rest/v1/applications?select=id,fair_edition_id&fair_edition_id=in.(${ids(editions.map((item) => item.id))})&status=eq.CONFIRMED`);
     if (!applications.length) return { organization: organizations[0], responseCount: 0, metrics: summarize([]).metrics };

@@ -1,15 +1,10 @@
 import { HttpError } from '../../lib/http.js';
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const editionStatuses = ['DRAFT', 'PUBLISHED', 'REGISTRATION_OPEN', 'CURATION', 'CONFIRMED', 'FINISHED', 'CANCELLED'];
+const editionStatuses = ['DRAFT', 'PUBLISHED'];
 const statusTransitions = {
-  DRAFT: ['PUBLISHED', 'CANCELLED'],
-  PUBLISHED: ['DRAFT', 'REGISTRATION_OPEN', 'CANCELLED'],
-  REGISTRATION_OPEN: ['CURATION', 'CANCELLED'],
-  CURATION: ['CONFIRMED', 'CANCELLED'],
-  CONFIRMED: ['FINISHED', 'CANCELLED'],
-  FINISHED: [],
-  CANCELLED: []
+  DRAFT: ['PUBLISHED'],
+  PUBLISHED: ['DRAFT']
 };
 
 function requiredText(value, field, max) {
@@ -86,13 +81,31 @@ function categoryIds(value) {
 function status(value, creation = false) {
   const normalized = String(value || 'DRAFT').toUpperCase();
   if (!editionStatuses.includes(normalized)) throw new HttpError(422, 'INVALID_STATUS', 'Status de edição inválido.');
-  if (creation && !['DRAFT', 'PUBLISHED'].includes(normalized)) {
-    throw new HttpError(422, 'INVALID_STATUS', 'Uma edição nova deve começar como rascunho ou publicada.');
+  if (creation && normalized !== 'DRAFT') {
+    throw new HttpError(422, 'INVALID_STATUS', 'Uma edição nova deve começar como rascunho. Salve o formulário antes de publicá-la.');
   }
   return normalized;
 }
 
+function saoPauloDateKey(value = new Date()) {
+  const parts = Object.fromEntries(new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit'
+  }).formatToParts(value).map((part) => [part.type, part.value]));
+  return `${parts.year}-${parts.month}-${parts.day}`;
+}
+
+function assertNotPast(value, field, today) {
+  if (saoPauloDateKey(new Date(value)) < today) {
+    throw new HttpError(422, 'PAST_DATE_NOT_ALLOWED', `${field} não pode possuir uma data anterior ao dia de hoje no horário de São Paulo.`);
+  }
+}
+
 function assertDates(startsAt, endsAt, registrationOpensAt, registrationClosesAt) {
+  const today = saoPauloDateKey();
+  assertNotPast(startsAt, 'Início da feira', today);
+  assertNotPast(endsAt, 'Término da feira', today);
+  assertNotPast(registrationOpensAt, 'Abertura das inscrições', today);
+  assertNotPast(registrationClosesAt, 'Encerramento das inscrições', today);
   if (new Date(endsAt) <= new Date(startsAt)) throw new HttpError(422, 'INVALID_DATE_RANGE', 'O término da edição deve ocorrer depois do início.');
   if (registrationOpensAt && registrationClosesAt && new Date(registrationClosesAt) <= new Date(registrationOpensAt)) {
     throw new HttpError(422, 'INVALID_REGISTRATION_RANGE', 'O encerramento das inscrições deve ocorrer depois da abertura.');
@@ -196,7 +209,8 @@ export function validateEditionPatch(input = {}, current) {
   if (input.registrationClosesAt !== undefined) patch.registration_closes_at = dateValue(input.registrationClosesAt, 'Encerramento das inscrições');
   if (input.status !== undefined) {
     const next = status(input.status);
-    if (next !== current.status && !statusTransitions[current.status].includes(next)) {
+    const allowed = statusTransitions[current.status] || ['DRAFT', 'PUBLISHED'];
+    if (next !== current.status && !allowed.includes(next)) {
       throw new HttpError(409, 'INVALID_STATUS_TRANSITION', `Não é possível mudar a edição de ${current.status} para ${next}.`);
     }
     patch.status = next;
