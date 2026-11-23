@@ -1,9 +1,18 @@
 import { api } from '../models/api.model.js';
-import { bindForm, busy, date, escapeHtml as h, label, notice, status } from '../ui.js';
+import { bindForm, busy, date, escapeHtml as h, label, notice, openDialog, status } from '../ui.js';
 import { applicationDetailHtml } from './application.controller.js';
 
 const transitions={SUBMITTED:['PHOTO_REVIEW','UNDER_REVIEW','AWAITING_UPDATE','WAITLISTED','APPROVED','DECLINED'],PHOTO_REVIEW:['UNDER_REVIEW','AWAITING_UPDATE','DECLINED'],UNDER_REVIEW:['AWAITING_UPDATE','WAITLISTED','APPROVED','DECLINED'],AWAITING_UPDATE:['PHOTO_REVIEW','UNDER_REVIEW','DECLINED'],WAITLISTED:['APPROVED','DECLINED'],APPROVED:['DECLINED','CANCELLED'],CONFIRMED:['CANCELLED']};
 const finalStatuses=new Set(['WAITLISTED','APPROVED','CONFIRMED','DECLINED','CANCELLED']);
+
+function ensureSubmittedFormStyles() {
+  if(document.querySelector('link[data-submitted-form-styles]'))return;
+  const link=document.createElement('link');
+  link.rel='stylesheet';
+  link.href='assets/submitted-form-dialog.css';
+  link.dataset.submittedFormStyles='';
+  document.head.append(link);
+}
 
 export function applicationChecklist(detail) {
   const app=detail.application;
@@ -16,7 +25,7 @@ export function applicationChecklist(detail) {
   const decisionMade=finalStatuses.has(app.status);
   const spaceRequired=['APPROVED','CONFIRMED'].includes(app.status);
   return [
-    {label:'Formulário enviado',detail:submitted?'A candidatura foi enviada para análise.':'O formulário ainda está em rascunho.',state:submitted?'complete':'pending'},
+    {label:'Formulário enviado',detail:submitted?'A candidatura foi enviada para análise.':'O formulário ainda está em rascunho.',state:submitted?'complete':'pending',action:'form'},
     {label:'Imagens revisadas',detail:!media.length?'Nenhuma imagem foi enviada.':hasMediaProblem?'Há imagens com ajustes ou recusa.':mediaReviewed?'Todas as imagens foram analisadas.':`${media.filter(item=>item.review_status==='PENDING').length} imagem(ns) aguardando análise.`,state:mediaReviewed?'complete':hasMediaProblem?'attention':'pending'},
     {label:'Pedido especial analisado',detail:!exception?'Não há pedido especial nesta candidatura.':exceptionResolved?'O pedido especial já recebeu uma decisão.':'O pedido especial aguarda decisão.',state:exceptionResolved?'complete':'attention'},
     {label:'Decisão da curadoria',detail:decisionMade?`Decisão registrada: ${label(app.status)}.`:'A decisão final ainda não foi registrada.',state:decisionMade?'complete':'pending'},
@@ -27,7 +36,65 @@ export function applicationChecklist(detail) {
 function checklistHtml(items) {
   const complete=items.filter(item=>item.state==='complete').length;
   const percentage=Math.round(complete/items.length*100);
-  return `<div class="review-progress" aria-label="${complete} de ${items.length} etapas concluídas"><span style="width:${percentage}%"></span></div><p><b>${complete} de ${items.length}</b> verificações concluídas</p><ul class="review-checklist">${items.map(item=>`<li class="${item.state}"><span class="review-checklist__icon" aria-hidden="true">${item.state==='complete'?'✓':item.state==='attention'?'!':'·'}</span><span><b>${h(item.label)}</b><small>${h(item.detail)}</small></span></li>`).join('')}</ul>`;
+  return `<div class="review-progress" aria-label="${complete} de ${items.length} etapas concluídas"><span style="width:${percentage}%"></span></div><p><b>${complete} de ${items.length}</b> verificações concluídas</p><ul class="review-checklist">${items.map(item=>`<li class="${item.state}${item.action?' is-actionable':''}">${item.action?`<button type="button" data-checklist-action="${h(item.action)}" aria-label="Consultar ${h(item.label)}">`:''}<span class="review-checklist__icon" aria-hidden="true">${item.state==='complete'?'✓':item.state==='attention'?'!':'·'}</span><span><b>${h(item.label)}</b><small>${h(item.detail)}</small></span>${item.action?'</button>':''}</li>`).join('')}</ul>`;
+}
+
+function hasAnswer(value) {
+  return value!==null&&value!==undefined&&value!==''&&(!Array.isArray(value)||value.length>0);
+}
+
+function conditionState(field,answersByKey) {
+  const condition=field.conditional_logic||{};
+  if(!condition.fieldKey)return 'applies';
+  if(!answersByKey.has(condition.fieldKey))return 'unknown';
+  const value=answersByKey.get(condition.fieldKey);
+  if(condition.operator==='truthy')return value?'applies':'not-applicable';
+  if(condition.operator==='in')return Array.isArray(condition.value)&&condition.value.includes(value)?'applies':'not-applicable';
+  if(condition.operator==='contains')return Array.isArray(value)&&value.includes(condition.value)?'applies':'not-applicable';
+  return value===condition.value?'applies':'not-applicable';
+}
+
+function answerText(field,value) {
+  if(!hasAnswer(value))return 'Não informado';
+  const labels=new Map((field.options||[]).map(option=>[String(option.value),option.label]));
+  const display=item=>{
+    if(typeof item==='boolean')return item?'Sim':'Não';
+    if(item===null||item===undefined||item==='')return 'Não informado';
+    if(typeof item==='object')return JSON.stringify(item);
+    return labels.get(String(item))||String(item);
+  };
+  return Array.isArray(value)?value.map(display).join(', '):display(value);
+}
+
+function submittedFormHtml(detail) {
+  const app=detail.application||{};
+  const form=detail.form;
+  const answers=detail.answers||[];
+  const answerByField=new Map(answers.map(answer=>[answer.field_id,answer.value_json]));
+  const fields=(form?.sections||[]).flatMap(section=>section.fields||[]);
+  const answersByKey=new Map(fields.map(field=>[field.field_key,answerByField.get(field.id)]));
+  const knownFieldIds=new Set(fields.map(field=>field.id));
+  const mediaByField=new Map();
+  const unlinkedMedia=[];
+  for(const media of detail.media||[]){
+    if(media.field_id){if(!mediaByField.has(media.field_id))mediaByField.set(media.field_id,[]);mediaByField.get(media.field_id).push(media);}
+    else unlinkedMedia.push(media);
+  }
+  const fileList=items=>items.length?`<ul class="submitted-form-files">${items.map(item=>`<li><a href="${h(item.url)}" target="_blank" rel="noreferrer">${h(item.original_filename||'Consultar arquivo')}</a></li>`).join('')}</ul>`:'<p class="submitted-form-answer">Nenhum arquivo associado.</p>';
+  const sections=!form?'<p class="review-empty">Não há formulário associado disponível para esta candidatura.</p>':(form.sections||[]).map(section=>`<section class="submitted-form-section"><h3>${h(section.title)}</h3>${section.description?`<p>${h(section.description)}</p>`:''}<dl>${(section.fields||[]).map(field=>{
+    const condition=conditionState(field,answersByKey);
+    const value=answerByField.get(field.id);
+    const files=mediaByField.get(field.id)||[];
+    const response=condition==='not-applicable'&&!hasAnswer(value)&&!files.length?'<p class="submitted-form-answer">Não se aplicava a esta candidatura.</p>':condition==='unknown'&&!hasAnswer(value)&&!files.length?'<p class="submitted-form-answer">Não informado; não foi possível confirmar se a condição da pergunta se aplicava.</p>':['IMAGE','FILE'].includes(field.type)?fileList(files):`<p class="submitted-form-answer">${h(answerText(field,value))}</p>`;
+    return `<div class="submitted-form-field"><dt>${h(field.label)}</dt><dd>${response}</dd></div>`;
+  }).join('')}</dl></section>`).join('')||'<p class="review-empty">O formulário associado não possui seções disponíveis.</p>';
+  const unidentified=answers.filter(answer=>!knownFieldIds.has(answer.field_id));
+  return `<div class="submitted-form-meta"><article><span>Expositor</span><b>${h(detail.exhibitor?.display_name||app.applicant_name||'Não informado')}</b></article><article><span>Feira</span><b>${h(detail.edition?.fair?.name||'Não identificada')}</b></article><article><span>Edição</span><b>${h(detail.edition?.title||'Não identificada')}</b></article><article><span>Protocolo</span><b>${h(app.id||'Não disponível')}</b></article><article><span>Envio</span><b>${h(app.submitted_at?date(app.submitted_at):'Ainda não enviado')}</b></article></div>${sections}${unlinkedMedia.length?`<section class="submitted-form-section"><h3>Arquivos da candidatura sem pergunta associada</h3>${fileList(unlinkedMedia)}</section>`:''}${unidentified.length?`<section class="submitted-form-section"><h3>Respostas sem pergunta identificável</h3><p class="review-empty">${unidentified.length} resposta(s) histórica(s) não puderam ser associadas com segurança à definição disponível do formulário.</p></section>`:''}<section class="submitted-form-section"><h3>Termos aceitos</h3>${(detail.consents||[]).length?`<ul class="submitted-form-consents">${detail.consents.map(consent=>`<li><p>${h(consent.consent_text)}</p><small>Aceito em ${h(date(consent.accepted_at))}</small></li>`).join('')}</ul>`:'<p class="review-empty">Não há registros de aceite recuperáveis para esta candidatura.</p>'}</section>`;
+}
+
+function openSubmittedForm(detail) {
+  const dialog=openDialog('Formulário enviado',submittedFormHtml(detail));
+  dialog.classList.add('submitted-form-dialog');
 }
 
 function timelineHtml(history) {
@@ -55,6 +122,7 @@ async function render(root,id) {
   const candidate=detail.exhibitor?.display_name||app.applicant_name||'Candidatura';
   document.title=`${candidate} | Análise da candidatura`;
   root.innerHTML=`<header class="private-heading review-heading" id="resumo"><div><span class="eyebrow">Análise da candidatura</span><h1>${h(candidate)}</h1><div class="review-heading__meta">${status(app.status)}<span>Protocolo ${h(app.id)}</span></div></div><a class="btn btn-secondary" href="curadoria.html#inscricoes">Voltar à lista</a></header><div class="review-layout"><div class="review-main"><section class="review-card"><h2>Resumo do candidato</h2>${summaryHtml(detail)}</section><section class="review-card" id="respostas"><h2>Respostas, produtos e documentos</h2>${applicationDetailHtml(detail,{includeHistory:false,includeStatus:false})}</section><section class="review-card" id="historico"><h2>Linha do tempo da análise</h2>${timelineHtml(detail.history||[])}</section></div><aside class="review-side"><section class="review-card"><h2>Pendências</h2>${checklistHtml(applicationChecklist(detail))}</section><section class="review-card review-actions" id="decisao"><h2>Decisão e espaço</h2><p data-global-feedback aria-live="polite"></p>${actionsHtml(detail,spaces)}</section></aside></div>`;
+  root.querySelector('[data-checklist-action="form"]')?.addEventListener('click',()=>openSubmittedForm(detail));
   bindForm(root.querySelector('[data-decision]'),async data=>{await api.request(`/curation/applications/${id}`,{method:'PATCH',body:{...data,visibleToExhibitor:!!data.visibleToExhibitor}});await render(root,id);});
   bindForm(root.querySelector('[data-assign]'),async data=>{await api.request(`/curation/applications/${id}/space`,{method:'PUT',body:data});await render(root,id);});
   const release=root.querySelector('[data-release]');if(release)release.onclick=()=>busy(release,async()=>{await api.request(`/curation/applications/${id}/space`,{method:'DELETE'});await render(root,id);},root.querySelector('[data-global-feedback]'));
@@ -64,6 +132,7 @@ async function render(root,id) {
 
 export async function initializeCurationApplication() {
   const root=document.querySelector('[data-curation-application-root]');if(!root)return;
+  ensureSubmittedFormStyles();
   const id=new URLSearchParams(location.search).get('id');
   if(!id){root.innerHTML='<div class="workflow-empty"><h1>Candidatura não informada</h1><p>Abra a análise a partir da lista de inscrições.</p><a class="btn btn-primary" href="curadoria.html#inscricoes">Voltar às inscrições</a></div>';return;}
   try{await render(root,id);}catch(error){root.innerHTML='<div class="workflow-empty"><h1>Não foi possível abrir a candidatura</h1><p data-feedback></p><a class="btn btn-primary" href="curadoria.html#inscricoes">Voltar às inscrições</a></div>';notice(root.querySelector('[data-feedback]'),error.message);}

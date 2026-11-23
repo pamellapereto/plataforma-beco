@@ -49,6 +49,7 @@ export async function initializeApplication() {
   let editionId=detail?.application.fair_edition_id||params.get('edicao');
   if(!editionId){const fairs=await api.fairs();const editions=fairs.flatMap(f=>f.editions||[]).filter(e=>e.status==='PUBLISHED'&&e.registration_status==='OPEN');if(editions.length!==1)throw Error('Escolha uma feira com inscrições abertas na página Nossas feiras.');editionId=editions[0].id;}
   if(!applicationId){ const existing=(await api.myApplications()).find(a=>a.fair_edition_id===editionId); if(existing){applicationId=existing.id;detail=await api.request(`/applications/${applicationId}`);history.replaceState(null,'',`inscricao-expositor.html?inscricao=${encodeURIComponent(applicationId)}`);if(!['DRAFT','AWAITING_UPDATE'].includes(detail.application.status)){root.innerHTML=applicationDetailHtml(detail);return;}} }
+  if(!applicationId){const created=await api.request(`/fair-editions/${editionId}/applications`,{method:'POST',body:{requestedSpaceType:null}});applicationId=created.id;history.replaceState(null,'',`inscricao-expositor.html?inscricao=${encodeURIComponent(applicationId)}`);detail=await api.request(`/applications/${applicationId}`);}
   if(detail?.application.status==='DRAFT')await api.request(`/fair-editions/${encodeURIComponent(editionId)}/form`);
   const definition=detail?.form||await api.request(`/fair-editions/${encodeURIComponent(editionId)}/form`);
   let media=detail?.media||[];const fields=definition.sections.flatMap(s=>s.fields);const saved=new Map((detail?.answers||[]).map(a=>[a.field_id,a.value_json]));
@@ -77,7 +78,12 @@ export async function initializeApplication() {
       const reason=form.elements.exceptionReason.value.trim();if(reason)await api.request(`/applications/${applicationId}/exception-request`,{method:'PUT',body:{reason}});
       if(draft){unsaved.markSaved(savedRevision);notice(feedback,unsaved.revision===savedRevision?'Rascunho salvo. Você pode continuar pela sua área.':'Rascunho salvo, mas há novas alterações. Salve novamente antes de sair.',true);return;}
       const consents=(definition.required_consents||[]).map(c=>({key:c.key,accepted:form.elements[`consent_${c.key}`].checked}));
-      await api.request(`/applications/${applicationId}/submit`,{method:'POST',body:{consents}});unsaved.markSaved();location.href=`area-expositor.html?enviada=${encodeURIComponent(applicationId)}`;
+      await api.request(`/applications/${applicationId}/submit`,{method:'POST',body:{consents}});
+      unsaved.markSaved();
+      const submittedDetail=await api.request(`/applications/${encodeURIComponent(applicationId)}`);
+      root.innerHTML=`<div class="workflow-feedback success" role="status">Inscrição enviada com sucesso para a curadoria.</div>${applicationDetailHtml(submittedDetail)}`;
+      const confirmation=openDialog('Inscrição enviada com sucesso',`<p>Sua candidatura foi recebida pela curadoria. Abaixo deste aviso, você pode conferir as respostas e os arquivos enviados.</p><p>Deseja acessar agora a seção <b>Minhas inscrições</b> para acompanhar esta candidatura?</p><div class="hero-actions"><a class="btn btn-primary" href="area-expositor.html#inscricoes">Ver minhas inscrições</a><button class="btn btn-secondary" type="button" data-stay-here>Permanecer aqui</button></div>`);
+      confirmation.querySelector('[data-stay-here]')?.addEventListener('click',()=>confirmation.requestWorkflowClose());
     }catch(error){notice(feedback,error.message);}finally{saving=false;buttons.forEach(b=>b.disabled=false);}
   });
  }catch(error){root.innerHTML='<div data-feedback></div><a class="btn btn-secondary" href="feiras.html">Ver feiras</a>';notice(root.querySelector('[data-feedback]'),error.message);}

@@ -87,25 +87,7 @@ function status(value, creation = false) {
   return normalized;
 }
 
-function saoPauloDateKey(value = new Date()) {
-  const parts = Object.fromEntries(new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'America/Sao_Paulo', year: 'numeric', month: '2-digit', day: '2-digit'
-  }).formatToParts(value).map((part) => [part.type, part.value]));
-  return `${parts.year}-${parts.month}-${parts.day}`;
-}
-
-function assertNotPast(value, field, today) {
-  if (saoPauloDateKey(new Date(value)) < today) {
-    throw new HttpError(422, 'PAST_DATE_NOT_ALLOWED', `${field} não pode possuir uma data anterior ao dia de hoje no horário de São Paulo.`);
-  }
-}
-
 function assertDates(startsAt, endsAt, registrationOpensAt, registrationClosesAt) {
-  const today = saoPauloDateKey();
-  assertNotPast(startsAt, 'Início da feira', today);
-  assertNotPast(endsAt, 'Término da feira', today);
-  assertNotPast(registrationOpensAt, 'Abertura das inscrições', today);
-  assertNotPast(registrationClosesAt, 'Encerramento das inscrições', today);
   if (new Date(endsAt) <= new Date(startsAt)) throw new HttpError(422, 'INVALID_DATE_RANGE', 'O término da edição deve ocorrer depois do início.');
   if (registrationOpensAt && registrationClosesAt && new Date(registrationClosesAt) <= new Date(registrationOpensAt)) {
     throw new HttpError(422, 'INVALID_REGISTRATION_RANGE', 'O encerramento das inscrições deve ocorrer depois da abertura.');

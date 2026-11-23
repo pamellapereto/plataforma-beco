@@ -91,6 +91,12 @@ export class CurationService {
   async detail(applicationId, principal) {
     requireBecoAdmin(principal);
     const detail = await this.applications.detail(applicationId, principal);
+    const editions = await this.gateway.request(`rest/v1/fair_editions?select=id,fair_id,title&id=eq.${detail.application.fair_edition_id}&limit=1`);
+    const edition = editions[0] || null;
+    const fairs = edition
+      ? await this.gateway.request(`rest/v1/fairs?select=id,name&id=eq.${edition.fair_id}&limit=1`)
+      : [];
+    const editionContext = edition ? { ...edition, fair: fairs[0] || null } : null;
     const actorIds = [...new Set(detail.history.map((item) => item.actor_user_id).filter(Boolean))];
     const actors = actorIds.length
       ? await this.gateway.request(`rest/v1/app_users?select=id,full_name,email&id=in.(${actorIds.join(',')})`)
@@ -99,7 +105,7 @@ export class CurationService {
     const history = detail.history.map((item) => ({ ...item, actor: actorById.get(item.actor_user_id) || null }));
     const exhibitors = await this.gateway.request(`rest/v1/exhibitors?select=*&id=eq.${detail.application.exhibitor_id}&limit=1`);
     const exhibitor = exhibitors[0];
-    if (!exhibitor) return { ...detail, history, exhibitor: null };
+    if (!exhibitor) return { ...detail, history, edition: editionContext, exhibitor: null };
     const [users, categoryLinks] = await Promise.all([
       this.gateway.request(`rest/v1/app_users?select=id,email,full_name,is_active&id=eq.${exhibitor.user_id}&limit=1`),
       this.gateway.request(`rest/v1/exhibitor_category_links?select=category_id&exhibitor_id=eq.${exhibitor.id}`)
@@ -108,7 +114,7 @@ export class CurationService {
     const categories = categoryIds.length
       ? await this.gateway.request(`rest/v1/exhibitor_categories?select=id,name,slug&id=in.(${categoryIds.join(',')})`)
       : [];
-    return { ...detail, history, exhibitor: { ...exhibitor, account: users[0] || null, categories } };
+    return { ...detail, history, edition: editionContext, exhibitor: { ...exhibitor, account: users[0] || null, categories } };
   }
 
   async decide(applicationId, input, principal) {

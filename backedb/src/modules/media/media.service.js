@@ -29,7 +29,7 @@ function mediaRole(value) {
 }
 
 async function getApplication(gateway, applicationId) {
-  const rows = await gateway.request(`rest/v1/applications?select=id,exhibitor_id,fair_edition_id,status&id=eq.${encodeURIComponent(applicationId)}`);
+  const rows = await gateway.request(`rest/v1/applications?select=id,exhibitor_id,fair_edition_id,registration_form_id,status&id=eq.${encodeURIComponent(applicationId)}`);
   if (!rows[0]) throw new HttpError(404, 'APPLICATION_NOT_FOUND', 'Inscrição não encontrada.');
   return rows[0];
 }
@@ -62,10 +62,7 @@ export class MediaService {
     const field = fields[0];
     if (!field || !['IMAGE', 'FILE'].includes(field.type)) throw new HttpError(422, 'INVALID_MEDIA_FIELD', 'A pergunta informada não aceita arquivo.');
     const sections = await this.gateway.request(`rest/v1/registration_form_sections?select=form_id&id=eq.${field.section_id}&limit=1`);
-    const forms = sections[0]
-      ? await this.gateway.request(`rest/v1/registration_forms?select=fair_edition_id&id=eq.${sections[0].form_id}&limit=1`)
-      : [];
-    if (forms[0]?.fair_edition_id !== application.fair_edition_id) throw new HttpError(422, 'INVALID_MEDIA_FIELD', 'A pergunta não pertence ao formulário desta edição.');
+    if (sections[0]?.form_id !== application.registration_form_id) throw new HttpError(422, 'INVALID_MEDIA_FIELD', 'A pergunta não pertence à versão do formulário vinculada a esta candidatura.');
     return field.id;
   }
 

@@ -44,7 +44,7 @@ function decode(value) { return decodeURIComponent(String(value).replace(/\+/g, 
 
 const jsonValueKeys = new Set(['history_paragraphs', 'facts', 'required_consents', 'validation', 'conditional_logic', 'value_json', 'social_links', 'checks', 'p_definition', 'p_consents']);
 function databaseValue(key, value) {
-  if (value !== null && value !== undefined && jsonValueKeys.has(key) && typeof value === 'object') return JSON.stringify(value);
+  if (value !== null && value !== undefined && jsonValueKeys.has(key)) return JSON.stringify(value);
   return value;
 }
 
@@ -95,7 +95,7 @@ function postgresError(error) {
 
 async function rpc(name, body = {}) {
   const entries = Object.entries(body);
-  const values = entries.map(([, value]) => value);
+  const values = entries.map(([key, value]) => databaseValue(key, value));
   const args = entries.map(([key], index) => `${identifier(key)} => $${index + 1}`).join(', ');
   const result = await databasePool().query(`SELECT * FROM public.${identifier(name)}(${args})`, values);
   if (result.fields.length === 1 && result.rows.length === 1) return result.rows[0][result.fields[0].name];

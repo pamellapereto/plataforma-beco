@@ -1,0 +1,122 @@
+.review-checklist li.is-actionable {
+  display: block;
+  padding: 0;
+}
+
+.review-checklist li.is-actionable button {
+  width: 100%;
+  padding: 11px;
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  border: 0;
+  border-radius: inherit;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+}
+
+.review-checklist li.is-actionable button:hover {
+  background: #f4f8f5;
+}
+
+.submitted-form-dialog {
+  width: min(1040px, 94vw);
+}
+
+.submitted-form-meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 16px 0 24px;
+}
+
+.submitted-form-meta article {
+  padding: 13px;
+  border-radius: 10px;
+  background: #f4f8f5;
+}
+
+.submitted-form-meta span,
+.submitted-form-meta b {
+  display: block;
+}
+
+.submitted-form-meta span {
+  margin-bottom: 5px;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.submitted-form-section {
+  padding: 20px 0;
+  border-top: 1px solid var(--line);
+}
+
+.submitted-form-section > h3 {
+  margin: 0 0 12px;
+  color: var(--green-deep);
+}
+
+.submitted-form-section > p,
+.submitted-form-answer,
+.submitted-form-consents p {
+  white-space: pre-wrap;
+}
+
+.submitted-form-section > p {
+  color: var(--muted);
+}
+
+.submitted-form-section dl,
+.submitted-form-answer,
+.submitted-form-consents p {
+  margin: 0;
+}
+
+.submitted-form-field {
+  padding: 13px 0;
+  border-bottom: 1px solid #edf0ed;
+}
+
+.submitted-form-field:last-child {
+  border-bottom: 0;
+}
+
+.submitted-form-field dt {
+  font-weight: 850;
+}
+
+.submitted-form-field dd {
+  margin: 6px 0 0;
+  color: #46564e;
+}
+
+.submitted-form-files,
+.submitted-form-consents {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding-left: 20px;
+}
+
+.submitted-form-files a {
+  color: var(--green);
+  font-weight: 800;
+  text-decoration: underline;
+}
+
+.submitted-form-consents small {
+  display: block;
+  margin-top: 4px;
+  color: var(--muted);
+}
+
+@media (max-width: 650px) {
+  .submitted-form-meta {
+    grid-template-columns: 1fr;
+  }
+}

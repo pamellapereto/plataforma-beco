@@ -12,7 +12,7 @@ export async function initializeHomepageEditor(){
   const form=root.querySelector('[data-home-form]');
   const publicPageButton=root.querySelector('.private-heading a[href="index.html"]');
   publicPageButton?.addEventListener('click',event=>{event.preventDefault();window.open(new URL('index.html',document.baseURI).href,'_blank','noopener,noreferrer');});
-  const unsaved=protectUnsavedNavigation(form,'As alterações da página inicial ainda não foram salvas. Salve antes de acessar outra opção do menu.');
+  const unsaved=protectUnsavedNavigation(form,'As alterações da página inicial ainda não foram salvas. Deseja sair sem salvar?');
   const updatePreview=()=>{for(const key of ['eyebrow','title','introText','captionTitle','captionText'])root.querySelector(`[data-preview="${key}"]`).textContent=form.elements[key].value;const image=root.querySelector('[data-preview-image]');image.alt=form.elements.imageAlt.value;};
   form.addEventListener('input',updatePreview);
   form.elements.image.addEventListener('change',()=>{const file=form.elements.image.files[0];if(!file)return;const image=root.querySelector('[data-preview-image]');const url=URL.createObjectURL(file);image.onload=()=>URL.revokeObjectURL(url);image.src=url;});

@@ -22,9 +22,23 @@ export class FormsService {
 
   async getByEdition(editionId, { allowUnpublished = false } = {}) {
     validateUuid(editionId, 'Edição');
-    const forms = await this.gateway.request(`rest/v1/registration_forms?select=id,fair_edition_id,title,introduction,required_consents,version,is_published,created_at,updated_at&fair_edition_id=eq.${editionId}&limit=1`);
+    const forms = await this.gateway.request(`rest/v1/registration_forms?select=id,fair_edition_id,title,introduction,required_consents,version,is_published,is_current,created_at,updated_at&fair_edition_id=eq.${editionId}&is_current=eq.true&limit=1`);
     const form = forms[0];
     if (!form) throw new HttpError(404, 'FORM_NOT_FOUND', 'Formulário não encontrado.');
+    return this.formDefinition(form);
+  }
+
+  async getById(formId, editionId = null) {
+    validateUuid(formId, 'Formulário');
+    if (editionId) validateUuid(editionId, 'Edição');
+    const editionFilter = editionId ? `&fair_edition_id=eq.${editionId}` : '';
+    const forms = await this.gateway.request(`rest/v1/registration_forms?select=id,fair_edition_id,title,introduction,required_consents,version,is_published,is_current,created_at,updated_at&id=eq.${formId}${editionFilter}&limit=1`);
+    const form = forms[0];
+    if (!form) throw new HttpError(404, 'FORM_NOT_FOUND', 'A versão do formulário vinculada à candidatura não foi encontrada.');
+    return this.formDefinition(form);
+  }
+
+  async formDefinition(form) {
     const sections = await this.gateway.request(`rest/v1/registration_form_sections?select=id,title,description,position&form_id=eq.${form.id}&order=position.asc`);
     const sectionIds = sections.map((section) => section.id);
     const fields = sectionIds.length
@@ -81,8 +95,9 @@ export class FormsService {
         p_definition: definition
       }
     });
-    const formId = Array.isArray(result) ? result[0] : result;
-    return { id: formId, ...(await this.getByEdition(editionId, { allowUnpublished: true })) };
+    const metadata = Array.isArray(result) ? result[0] : result;
+    const form = await this.getByEdition(editionId, { allowUnpublished: true });
+    return { ...form, createdNewVersion: metadata?.createdNewVersion === true };
   }
 
   async publicationIssues(editionId) {
