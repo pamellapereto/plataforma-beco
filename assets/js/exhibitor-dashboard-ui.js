@@ -33,7 +33,7 @@ function buildOverview(main) {
  if (main.querySelector('[data-exhibitor-overview]')) return;
  const stats = [...main.querySelectorAll('.dash-stats article')];
  const statValue = index => stats[index]?.querySelector('b')?.textContent?.trim() || '—';
- const openCount = main.querySelectorAll('#feiras-abertas .open-edition-card').length;
+ const openCount = main.querySelectorAll('#feiras-abertas .open-edition-card[data-registration-status="OPEN"]').length;
  const overview = document.createElement('section');
  overview.className = 'dashboard-overview exhibitor-overview';
  overview.dataset.exhibitorOverview = '';
@@ -41,7 +41,7 @@ function buildOverview(main) {
  stats[0]?.parentElement?.after(overview);
 }
 
-function applyView(view, { scroll = true } = {}) {
+function applyView(view) {
  const main = document.querySelector('.private-main');
  if (!main?.querySelector('#feiras-abertas')) return;
  currentView = views[view] ? view : 'overview';
@@ -61,7 +61,6 @@ function applyView(view, { scroll = true } = {}) {
  }
  setActiveView(currentView);
  history.replaceState(null, '', currentView === 'overview' ? '#visao-geral' : `#${panelByView[currentView]}`);
- if (scroll) window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 function installViewNavigation(main) {
@@ -129,13 +128,13 @@ export function enhanceDashboard() {
  installViewNavigation(main);
  installMobileNavigation();
  installBackToTop();
- applyView(currentView, { scroll: false });
+ applyView(currentView);
  if (!contentObserver) {
   contentObserver = new MutationObserver(() => {
    if (!main.querySelector('.panel:not(.dashboard-panel)')) return;
    decoratePanels(main);
    buildOverview(main);
-   applyView(currentView, { scroll: false });
+   applyView(currentView);
   });
   contentObserver.observe(main, { childList: true, subtree: true });
  }

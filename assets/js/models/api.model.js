@@ -71,7 +71,7 @@ export class ApiModel {
   saveHomepage(body) { return this.request('/admin/homepage', { method: 'PUT', body }); }
   adminAbout() { return this.request('/admin/about', { cache: 'no-store' }); }
   saveAbout(body) { return this.request('/admin/about', { method: 'PUT', body }); }
-  async openEditions(now = new Date()) {
+  async opportunityEditions(now = new Date()) {
     const timestamp = now instanceof Date ? now.getTime() : new Date(now).getTime();
     const fairs = await this.fairs();
     return fairs.flatMap(fair => (fair.editions || []).map(edition => ({
@@ -81,10 +81,11 @@ export class ApiModel {
       const opensAt = edition.registration_opens_at ? new Date(edition.registration_opens_at).getTime() : null;
       const closesAt = edition.registration_closes_at ? new Date(edition.registration_closes_at).getTime() : null;
       return edition.status === 'PUBLISHED'
-        && edition.registration_status === 'OPEN'
-        && (opensAt === null || (Number.isFinite(opensAt) && opensAt <= timestamp))
-        && (closesAt === null || (Number.isFinite(closesAt) && closesAt >= timestamp));
-    }).sort((left, right) => new Date(left.registration_closes_at || left.starts_at) - new Date(right.registration_closes_at || right.starts_at));
+        && ['OPEN','UPCOMING'].includes(edition.registration_status)
+        && (edition.registration_status !== 'OPEN' || opensAt === null || (Number.isFinite(opensAt) && opensAt <= timestamp))
+        && (edition.registration_status !== 'OPEN' || closesAt === null || (Number.isFinite(closesAt) && closesAt >= timestamp))
+        && (edition.registration_status !== 'UPCOMING' || opensAt === null || (Number.isFinite(opensAt) && opensAt > timestamp));
+    }).sort((left, right) => new Date(left.starts_at) - new Date(right.starts_at));
   }
   fair(slug) { return this.request(`/fair-editions/${encodeURIComponent(slug)}`, { auth: false, cache: 'no-store' }); }
   exhibitors(city) { return this.request(`/exhibitors${city ? `?city=${encodeURIComponent(city)}` : ''}`, { auth: false }); }

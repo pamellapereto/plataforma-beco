@@ -86,6 +86,22 @@ function orderClause(raw) {
 
 function postgresError(error) {
   if (error instanceof HttpError) return error;
+  if (String(error.message || '').includes('APPLICATION_REVIEW_ALREADY_STARTED')) return new HttpError(409, 'REVIEW_ALREADY_STARTED', 'Esta candidatura já está em análise.');
+  if (String(error.message || '').includes('APPLICATION_MEDIA_FORBIDDEN')) return new HttpError(403, 'FORBIDDEN', 'Você não pode alterar as imagens desta candidatura.');
+  if (String(error.message || '').includes('APPLICATION_NOT_EDITABLE')) return new HttpError(409, 'APPLICATION_NOT_EDITABLE', 'Esta candidatura não aceita alterações de imagem.');
+  if (String(error.message || '').includes('APPLICATION_MEDIA_LIMIT')) return new HttpError(409, 'APPLICATION_MEDIA_LIMIT', 'O limite de imagens para esta finalidade foi atingido.');
+  if (String(error.message || '').includes('MEDIA_CURRENT_VERSION_NOT_FOUND')) return new HttpError(409, 'MEDIA_CURRENT_VERSION_NOT_FOUND', 'Esta imagem já foi substituída ou não é mais a versão atual.');
+  if (String(error.message || '').includes('MEDIA_REPLACEMENT_NOT_ALLOWED')) return new HttpError(409, 'MEDIA_REPLACEMENT_NOT_ALLOWED', 'Somente imagens com ajuste solicitado podem ser substituídas nesta etapa.');
+  if (String(error.message || '').includes('MEDIA_REPLACEMENT_CONTEXT_INVALID')) return new HttpError(409, 'MEDIA_REPLACEMENT_CONTEXT_INVALID', 'A nova versão não corresponde à imagem original.');
+  if (String(error.message || '').includes('MEDIA_VERSION_CONFLICT')) return new HttpError(409, 'MEDIA_VERSION_CONFLICT', 'A imagem foi substituída por outra solicitação. Atualize a candidatura.');
+  if (String(error.message || '').includes('MEDIA_VERSION_RELATION_INVALID')) return new HttpError(409, 'MEDIA_VERSION_RELATION_INVALID', 'O encadeamento das versões da imagem é inválido.');
+  if (String(error.message || '').includes('MEDIA_VERSION_CYCLE')) return new HttpError(409, 'MEDIA_VERSION_CYCLE', 'Uma imagem não pode substituir a si mesma.');
+  if (String(error.message || '').includes('EXCEPTION_REQUEST_NOT_FOUND')) return new HttpError(404, 'EXCEPTION_REQUEST_NOT_FOUND', 'Pedido especial não encontrado.');
+  if (String(error.message || '').includes('EXCEPTION_REQUEST_FORBIDDEN')) return new HttpError(403, 'FORBIDDEN', 'Você não pode acessar este pedido especial.');
+  if (String(error.message || '').includes('EXCEPTION_REQUEST_UNAVAILABLE')) return new HttpError(409, 'EXCEPTION_REQUEST_UNAVAILABLE', 'Este pedido especial não está disponível para uma nova decisão.');
+  if (String(error.message || '').includes('INVALID_EXCEPTION_STATUS')) return new HttpError(422, 'INVALID_EXCEPTION_STATUS', 'Decisão sobre o pedido especial inválida.');
+  if (String(error.message || '').includes('INVALID_APPLICATION_TRANSITION')) return new HttpError(409, 'INVALID_STATUS_TRANSITION', 'Esta mudança de etapa não é permitida para a candidatura.');
+  if (String(error.message || '').includes('APPLICATION_DECISION_UNCHANGED')) return new HttpError(409, 'APPLICATION_DECISION_UNCHANGED', 'Nenhuma alteração foi identificada na decisão ou orientação.');
   if (error.code === '23505') return new HttpError(409, 'RESOURCE_CONFLICT', 'Já existe um registro com esses dados.');
   if (error.code === '23503') return new HttpError(409, 'RELATED_RESOURCE_CONFLICT', 'O registro está vinculado a outro dado do sistema.');
   if (error.code === '42P01') return new HttpError(503, 'DATABASE_SCHEMA_MISSING', 'O schema da aplicação ainda não foi instalado no PostgreSQL.');

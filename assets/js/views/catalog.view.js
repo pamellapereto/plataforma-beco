@@ -102,6 +102,47 @@ function evaluationMetrics(summary) {
   return Object.entries(labels).map(([key,label])=>{const metric=summary?.metrics?.[key];return `<article><span>${escapeHtml(label)}</span><b>${metric?.average==null?'Amostra insuficiente':`${escapeHtml(metric.average)}/5`}</b><small>${escapeHtml(metric?.responses||0)} resposta(s)</small></article>`;}).join('');
 }
 
+function imageAlt(item,index,context) {
+  return item.altText || item.alt_text || `Imagem ${index + 1} de ${context}`;
+}
+
+function createImageCarousel(images,{eyebrow,title,description,context}) {
+  const section=document.createElement('section');
+  section.className='section edition-gallery';
+  if(!images.length){
+    section.innerHTML=`<div class="section-heading"><div><span class="eyebrow">${escapeHtml(eyebrow)}</span><h2>${escapeHtml(title)}</h2></div><p>${escapeHtml(description)}</p></div><div class="data-state">Este expositor ainda não possui imagens públicas.</div>`;
+    return section;
+  }
+  const multiple=images.length>1;
+  section.innerHTML=`<div class="section-heading"><div><span class="eyebrow">${escapeHtml(eyebrow)}</span><h2>${escapeHtml(title)}</h2></div><p>${escapeHtml(description)}</p></div><div class="edition-gallery-shell${multiple?'':' single-image'}"><button type="button" class="edition-gallery-arrow previous" aria-label="Imagens anteriores" ${multiple?'':'hidden'}>‹</button><div class="edition-gallery-track">${images.map((item,index)=>`<button type="button" class="edition-gallery-slide" data-gallery-image="${index}" aria-label="Ampliar: ${escapeHtml(imageAlt(item,index,context))}"><img src="${escapeHtml(item.url)}" alt="${escapeHtml(imageAlt(item,index,context))}" loading="lazy"></button>`).join('')}</div><button type="button" class="edition-gallery-arrow next" aria-label="Próximas imagens" ${multiple?'':'hidden'}>›</button></div>`;
+  const track=section.querySelector('.edition-gallery-track');
+  let timer;
+  const pause=()=>clearInterval(timer);
+  const advance=direction=>{const distance=Math.max(280,track.clientWidth*.82)*direction;if(direction>0&&track.scrollLeft+track.clientWidth>=track.scrollWidth-8)track.scrollTo({left:0,behavior:'smooth'});else track.scrollBy({left:distance,behavior:'smooth'});};
+  const start=()=>{pause();if(multiple)timer=setInterval(()=>advance(1),5000);};
+  if(multiple){
+    section.querySelector('.previous').addEventListener('click',()=>{advance(-1);start();});
+    section.querySelector('.next').addEventListener('click',()=>{advance(1);start();});
+    ['pointerenter','focusin','touchstart'].forEach(type=>section.addEventListener(type,pause));
+    ['pointerleave','focusout','touchend'].forEach(type=>section.addEventListener(type,start));
+  }
+  section.querySelectorAll('[data-gallery-image]').forEach(button=>button.addEventListener('click',()=>{
+    pause();
+    const index=Number(button.dataset.galleryImage);
+    const item=images[index];
+    const lightbox=document.createElement('dialog');
+    lightbox.className='gallery-lightbox';
+    lightbox.innerHTML=`<button type="button" aria-label="Fechar">×</button><img src="${escapeHtml(item.url)}" alt="${escapeHtml(imageAlt(item,index,context))}">`;
+    document.body.append(lightbox);
+    lightbox.querySelector('button').addEventListener('click',()=>lightbox.close());
+    lightbox.addEventListener('click',event=>{if(event.target===lightbox)lightbox.close();});
+    lightbox.addEventListener('close',()=>{lightbox.remove();start();},{once:true});
+    lightbox.showModal();
+  }));
+  start();
+  return section;
+}
+
 export function renderFairDetail(main, edition, evaluationSummary, organizationSummary) {
   const exhibitors = edition.confirmedExhibitors || [];
   const registrationOpen = registrationState(edition) === 'OPEN';
@@ -120,7 +161,7 @@ export function renderFairDetail(main, edition, evaluationSummary, organizationS
   const locationAddress=main.querySelector('.edition-location-address');
   if(locationAddress&&edition.location?.postal_code)locationAddress.textContent+=`, CEP ${edition.location.postal_code}`;
   const galleryImages=(edition.media||[]).filter(item=>item.role==='GALLERY');
-  if(galleryImages.length){const gallery=document.createElement('section');gallery.className='section edition-gallery';gallery.innerHTML=`<div class="section-heading"><div><span class="eyebrow">Galeria</span><h2>Imagens desta edição</h2></div><p>Conheça os espaços, produtos e momentos preparados para a feira.</p></div><div class="edition-gallery-shell"><button type="button" class="edition-gallery-arrow previous" aria-label="Imagens anteriores">‹</button><div class="edition-gallery-track">${galleryImages.map((item,index)=>`<button type="button" class="edition-gallery-slide" data-gallery-image="${index}" aria-label="Ampliar: ${escapeHtml(item.altText||`Imagem ${index+1}`)}"><img src="${escapeHtml(item.url)}" alt="${escapeHtml(item.altText||`Imagem ${index+1} da edição`)}" loading="lazy"></button>`).join('')}</div><button type="button" class="edition-gallery-arrow next" aria-label="Próximas imagens">›</button></div>`;main.querySelector('#confirmados')?.before(gallery);const track=gallery.querySelector('.edition-gallery-track');let timer;const advance=direction=>{const distance=Math.max(280,track.clientWidth*.82)*direction;if(direction>0&&track.scrollLeft+track.clientWidth>=track.scrollWidth-8)track.scrollTo({left:0,behavior:'smooth'});else track.scrollBy({left:distance,behavior:'smooth'});};const start=()=>{clearInterval(timer);timer=setInterval(()=>advance(1),5000);};const pause=()=>clearInterval(timer);gallery.querySelector('.previous').onclick=()=>{advance(-1);start();};gallery.querySelector('.next').onclick=()=>{advance(1);start();};['pointerenter','focusin','touchstart'].forEach(type=>gallery.addEventListener(type,pause));['pointerleave','focusout','touchend'].forEach(type=>gallery.addEventListener(type,start));gallery.querySelectorAll('[data-gallery-image]').forEach(button=>button.onclick=()=>{pause();const item=galleryImages[Number(button.dataset.galleryImage)];const lightbox=document.createElement('dialog');lightbox.className='gallery-lightbox';lightbox.innerHTML=`<button type="button" aria-label="Fechar">×</button><img src="${escapeHtml(item.url)}" alt="${escapeHtml(item.altText||'Imagem ampliada da edição')}">`;document.body.append(lightbox);lightbox.querySelector('button').onclick=()=>lightbox.close();lightbox.addEventListener('click',event=>{if(event.target===lightbox)lightbox.close();});lightbox.addEventListener('close',()=>{lightbox.remove();start();},{once:true});lightbox.showModal();});start();}
+  if(galleryImages.length)main.querySelector('#confirmados')?.before(createImageCarousel(galleryImages,{eyebrow:'Galeria',title:'Imagens desta edição',description:'Conheça os espaços, produtos e momentos preparados para a feira.',context:'esta edição'}));
   const eventMetaItems=[...main.querySelectorAll('.event-meta > div')];
   const eventDateMeta=eventMetaItems.find(item=>item.querySelector('span')?.textContent.trim()==='Data')?.querySelector('b');
   if(eventDateMeta)eventDateMeta.textContent=`De ${dateTime(edition.starts_at)} até ${dateTime(edition.ends_at)}`;
@@ -131,8 +172,14 @@ export function renderFairDetail(main, edition, evaluationSummary, organizationS
 }
 
 export function renderExhibitorDetail(main, exhibitor) {
-  const image = portfolioCover(exhibitor);
+  const images=exhibitor.portfolio||[];
+  const featuredImage=images.find(item=>item.is_featured)||images[0]||null;
+  const image=featuredImage?.url||null;
   const social = Object.entries(exhibitor.social_links || {}).filter(([, url]) => /^https?:\/\//.test(url));
-  main.innerHTML = `<section class="profile-hero"><img src="${escapeHtml(image)}" alt="Produtos de ${escapeHtml(exhibitor.display_name)}"><div><span class="eyebrow">Expositor BECO</span><h1>${escapeHtml(exhibitor.display_name)}</h1><span class="tag">${escapeHtml(exhibitor.categories?.[0]?.name || 'Economia criativa')}</span><p>${escapeHtml(exhibitor.bio || '')}</p><div class="social-row">${social.map(([name, url]) => `<a href="${escapeHtml(url)}" target="_blank" rel="noreferrer">${escapeHtml(name)}</a>`).join('')}</div></div></section><section class="section"><div class="section-heading"><div><span class="eyebrow">Galeria</span><h2>Produtos e processos</h2></div><p>Imagens aprovadas pela curadoria e publicadas pelo expositor.</p></div><div class="gallery-grid">${exhibitor.portfolio?.length ? exhibitor.portfolio.map(item => `<img src="${escapeHtml(item.url)}" alt="${escapeHtml(item.alt_text || exhibitor.display_name)}" loading="lazy">`).join('') : `<img src="${escapeHtml(image)}" alt="${escapeHtml(exhibitor.display_name)}">`}</div></section><section class="section"><div class="section-heading"><div><span class="eyebrow">Participacoes</span><h2>Feiras confirmadas</h2></div></div><div class="fair-grid">${(exhibitor.fairHistory || []).map(item => `<article class="fair-card"><div class="fair-card-content"><span class="tag">${escapeHtml(date(item.starts_at))}</span><h3>${escapeHtml(item.title)}</h3><a class="card-link" href="feira-beco.html?edicao=${encodeURIComponent(item.slug)}">Ver feira &rarr;</a></div></article>`).join('') || '<div class="data-state">Nenhuma participacao publica no momento.</div>'}</div></section>`;
+  const socialLabels={instagram:'Instagram',facebook:'Facebook',tiktok:'TikTok',youtube:'YouTube',website:'Site',whatsapp:'WhatsApp',catalog:'Catálogo'};
+  const categories=(exhibitor.categories||[]).map(item=>`<span class="tag">${escapeHtml(item.name)}</span>`).join('')||'<span class="tag">Economia criativa</span>';
+  const location=[exhibitor.city,exhibitor.state].filter(Boolean).join(' · ');
+  main.innerHTML=`<section class="fair-landing exhibitor-landing"><div class="fair-landing-media exhibitor-landing-media${image?'':' is-empty'}">${image?`<img src="${escapeHtml(image)}" alt="${escapeHtml(featuredImage.alt_text||`Produtos de ${exhibitor.display_name}`)}">`:'<div class="exhibitor-image-empty" aria-label="Perfil sem imagens públicas"><span aria-hidden="true">BECO</span><p>Imagens do portfólio serão apresentadas aqui quando estiverem disponíveis.</p></div>'}</div><div><span class="eyebrow">Expositor BECO</span><h1>${escapeHtml(exhibitor.display_name)}</h1><div class="exhibitor-category-list">${categories}</div><p>${escapeHtml(exhibitor.bio||'Este expositor ainda não publicou uma apresentação.')}</p>${location?`<div class="event-meta exhibitor-meta"><div><span>Localização</span><b>${escapeHtml(location)}</b></div></div>`:''}<div class="social-row">${social.map(([name,url])=>`<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(socialLabels[name]||name)}</a>`).join('')}</div></div></section><div data-exhibitor-gallery></div><section class="section"><div class="section-heading"><div><span class="eyebrow">Participações</span><h2>Feiras confirmadas</h2></div></div><div class="fair-grid">${(exhibitor.fairHistory||[]).map(item=>`<article class="fair-card"><div class="fair-card-content"><span class="tag">${escapeHtml(date(item.starts_at))}</span><h3>${escapeHtml(item.title)}</h3><a class="card-link" href="feira-beco.html?edicao=${encodeURIComponent(item.slug)}">Ver feira &rarr;</a></div></article>`).join('')||'<div class="data-state">Nenhuma participação pública no momento.</div>'}</div></section>`;
+  main.querySelector('[data-exhibitor-gallery]').replaceWith(createImageCarousel(images,{eyebrow:'Galeria',title:'Produtos e processos',description:'Imagens aprovadas pela curadoria e publicadas pelo expositor.',context:`${exhibitor.display_name}`}));
   document.title = `${exhibitor.display_name} | Expositor BECO`;
 }

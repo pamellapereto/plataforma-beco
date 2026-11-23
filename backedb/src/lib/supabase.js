@@ -26,7 +26,23 @@ function throwSupabaseError(response, payload) {
     SPACE_NOT_FOUND: [404, 'SPACE_NOT_FOUND', 'Espaço não encontrado.'],
     SPACE_NOT_ASSIGNED: [409, 'SPACE_NOT_ASSIGNED', 'A inscrição não possui espaço atribuído.'],
     SPACE_UNAVAILABLE: [409, 'SPACE_UNAVAILABLE', 'Este espaço já está ocupado.'],
-    APPLICATION_NOT_APPROVED: [409, 'APPLICATION_NOT_APPROVED', 'A inscrição precisa estar aprovada antes da atribuição do espaço.']
+    APPLICATION_NOT_APPROVED: [409, 'APPLICATION_NOT_APPROVED', 'A inscrição precisa estar aprovada antes da atribuição do espaço.'],
+    APPLICATION_REVIEW_ALREADY_STARTED: [409, 'REVIEW_ALREADY_STARTED', 'Esta candidatura já está em análise.'],
+    APPLICATION_MEDIA_FORBIDDEN: [403, 'FORBIDDEN', 'Você não pode alterar as imagens desta candidatura.'],
+    APPLICATION_NOT_EDITABLE: [409, 'APPLICATION_NOT_EDITABLE', 'Esta candidatura não aceita alterações de imagem.'],
+    APPLICATION_MEDIA_LIMIT: [409, 'APPLICATION_MEDIA_LIMIT', 'O limite de imagens para esta finalidade foi atingido.'],
+    MEDIA_CURRENT_VERSION_NOT_FOUND: [409, 'MEDIA_CURRENT_VERSION_NOT_FOUND', 'Esta imagem já foi substituída ou não é mais a versão atual.'],
+    MEDIA_REPLACEMENT_NOT_ALLOWED: [409, 'MEDIA_REPLACEMENT_NOT_ALLOWED', 'Somente imagens com ajuste solicitado podem ser substituídas nesta etapa.'],
+    MEDIA_REPLACEMENT_CONTEXT_INVALID: [409, 'MEDIA_REPLACEMENT_CONTEXT_INVALID', 'A nova versão não corresponde à imagem original.'],
+    MEDIA_VERSION_CONFLICT: [409, 'MEDIA_VERSION_CONFLICT', 'A imagem foi substituída por outra solicitação. Atualize a candidatura.'],
+    MEDIA_VERSION_RELATION_INVALID: [409, 'MEDIA_VERSION_RELATION_INVALID', 'O encadeamento das versões da imagem é inválido.'],
+    MEDIA_VERSION_CYCLE: [409, 'MEDIA_VERSION_CYCLE', 'Uma imagem não pode substituir a si mesma.'],
+    EXCEPTION_REQUEST_NOT_FOUND: [404, 'EXCEPTION_REQUEST_NOT_FOUND', 'Pedido especial não encontrado.'],
+    EXCEPTION_REQUEST_FORBIDDEN: [403, 'FORBIDDEN', 'Você não pode acessar este pedido especial.'],
+    EXCEPTION_REQUEST_UNAVAILABLE: [409, 'EXCEPTION_REQUEST_UNAVAILABLE', 'Este pedido especial não está disponível para uma nova decisão.'],
+    INVALID_EXCEPTION_STATUS: [422, 'INVALID_EXCEPTION_STATUS', 'Decisão sobre o pedido especial inválida.'],
+    INVALID_APPLICATION_TRANSITION: [409, 'INVALID_STATUS_TRANSITION', 'Esta mudança de etapa não é permitida para a candidatura.'],
+    APPLICATION_DECISION_UNCHANGED: [409, 'APPLICATION_DECISION_UNCHANGED', 'Nenhuma alteração foi identificada na decisão ou orientação.']
   };
   const known = Object.entries(businessErrors).find(([key]) => message.includes(key));
   if (known) throw new HttpError(...known[1]);

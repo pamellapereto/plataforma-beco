@@ -66,6 +66,22 @@ export class MediaService {
     return field.id;
   }
 
+  async replacementFor(application, mediaAssetId, fieldId, role) {
+    if (!mediaAssetId) return null;
+    validateUuid(mediaAssetId, 'Imagem a substituir');
+    const links = await this.gateway.request(`rest/v1/application_media?select=id,application_id,media_asset_id,field_id,role,position,version_group_id,version_number,archived_at&application_id=eq.${encodeURIComponent(application.id)}&media_asset_id=eq.${encodeURIComponent(mediaAssetId)}&archived_at=is.null&limit=1`);
+    const link = links[0];
+    if (!link) throw new HttpError(404, 'MEDIA_CURRENT_VERSION_NOT_FOUND', 'A imagem atual não foi encontrada nesta candidatura.');
+    const assets = await this.gateway.request(`rest/v1/media_assets?select=id,review_status&id=eq.${encodeURIComponent(mediaAssetId)}&limit=1`);
+    if (application.status !== 'AWAITING_UPDATE' || !['CHANGES_REQUESTED', 'REJECTED'].includes(assets[0]?.review_status)) {
+      throw new HttpError(409, 'MEDIA_REPLACEMENT_NOT_ALLOWED', 'Somente imagens com ajuste solicitado podem ser substituídas nesta etapa.');
+    }
+    if (link.field_id !== fieldId || link.role !== role) {
+      throw new HttpError(409, 'MEDIA_REPLACEMENT_CONTEXT_INVALID', 'A nova versão deve permanecer vinculada à mesma pergunta e finalidade.');
+    }
+    return link;
+  }
+
   async createUploadUrl(applicationId, principal, input) {
     const { application, exhibitor } = await this.assertApplicationAccess(applicationId, principal);
     if (principal.role !== 'EXHIBITOR') throw new HttpError(403, 'FORBIDDEN', 'O envio é feito pela conta do expositor.');
@@ -76,6 +92,7 @@ export class MediaService {
     if (application.status === 'DRAFT') await new FormsService(this.gateway).getForApplicant(application.fair_edition_id, principal);
     const role = mediaRole(input?.role);
     const fieldId = await this.assertMediaField(application, input?.fieldId);
+    await this.replacementFor(application, input?.replaceMediaId, fieldId, role);
     if (!String(input?.originalFilename || '').trim()) throw new HttpError(422, 'INVALID_FILENAME', 'Informe o nome original da imagem.');
     if (!config.upload.allowedMimeTypes.includes(input.mimeType)) throw new HttpError(400, 'INVALID_MEDIA_TYPE', 'Formato de imagem não permitido.');
     if (!Number.isInteger(input.byteSize) || input.byteSize <= 0 || input.byteSize > config.upload.maxBytes) {
@@ -96,6 +113,7 @@ export class MediaService {
     if (application.status === 'DRAFT') await new FormsService(this.gateway).getForApplicant(application.fair_edition_id, principal);
     const role = mediaRole(input?.role);
     const fieldId = await this.assertMediaField(application, input?.fieldId);
+    const replacement = await this.replacementFor(application, input?.replaceMediaId, fieldId, role);
     const prefix = `exhibitors/${exhibitor.id}/applications/${application.id}/${role.toLowerCase()}/`;
     if (!String(input.objectPath).startsWith(prefix)) throw new HttpError(400, 'INVALID_OBJECT_PATH', 'Caminho de arquivo inválido.');
     if (!String(input.originalFilename || '').trim()) throw new HttpError(422, 'INVALID_FILENAME', 'Informe o nome original da imagem.');
@@ -103,56 +121,74 @@ export class MediaService {
     if (!config.upload.allowedMimeTypes.includes(input.mimeType)) throw new HttpError(400, 'INVALID_MEDIA_TYPE', 'Formato de imagem não permitido.');
     if (!Number.isInteger(input.byteSize) || input.byteSize <= 0 || input.byteSize > config.upload.maxBytes) throw new HttpError(400, 'INVALID_MEDIA_SIZE', 'Tamanho de imagem inválido.');
     await assertStoredImage(this.gateway, config.supabase.curationSubmissionsBucket, input);
-    const existing = await this.gateway.request(`rest/v1/application_media?select=position&application_id=eq.${encodeURIComponent(application.id)}&role=eq.${role}&order=position.desc&limit=1`);
-    const position = (existing[0]?.position ?? -1) + 1;
-    if (position >= roleLimits[role]) throw new HttpError(409, 'APPLICATION_MEDIA_LIMIT', `O limite para ${role} é de ${roleLimits[role]} arquivo(s).`);
-    const assets = await this.gateway.request('rest/v1/media_assets', {
-      method: 'POST', headers: { Prefer: 'return=representation' }, body: {
-        owner_user_id: principal.id, owner_exhibitor_id: exhibitor.id, storage_bucket: config.supabase.curationSubmissionsBucket,
-        object_path: input.objectPath, original_filename: cleanFilename(input.originalFilename), mime_type: input.mimeType,
-        byte_size: input.byteSize, alt_text: input.altText || null,
-        visibility: 'PRIVATE', review_status: 'PENDING'
-      }
-    });
-    const mediaAsset = assets[0];
-    if (!mediaAsset) throw new HttpError(502, 'MEDIA_NOT_RECORDED', 'Não foi possível registrar a imagem.');
+    if (!replacement) {
+      const existing = await this.gateway.request(`rest/v1/application_media?select=position&application_id=eq.${encodeURIComponent(application.id)}&role=eq.${role}&archived_at=is.null&order=position.desc&limit=1`);
+      const position = (existing[0]?.position ?? -1) + 1;
+      if (position >= roleLimits[role]) throw new HttpError(409, 'APPLICATION_MEDIA_LIMIT', `O limite para ${role} é de ${roleLimits[role]} arquivo(s).`);
+    }
     try {
-      await this.gateway.request('rest/v1/application_media', {
-        method: 'POST',
-        body: { application_id: application.id, media_asset_id: mediaAsset.id, field_id: fieldId, role, position }
+      const result = await this.gateway.request('rest/v1/rpc/register_application_media', {
+        method: 'POST', body: {
+          p_application_id: application.id,
+          p_actor_user_id: principal.id,
+          p_storage_bucket: config.supabase.curationSubmissionsBucket,
+          p_object_path: input.objectPath,
+          p_original_filename: cleanFilename(input.originalFilename),
+          p_mime_type: input.mimeType,
+          p_byte_size: input.byteSize,
+          p_alt_text: input.altText || null,
+          p_field_id: fieldId,
+          p_role: role,
+          p_replace_media_asset_id: replacement?.media_asset_id || null
+        }
       });
+      const mediaAsset = Array.isArray(result) ? result[0] : result;
+      if (!mediaAsset) throw new HttpError(502, 'MEDIA_NOT_RECORDED', 'Não foi possível registrar a imagem.');
+      return mediaAsset;
     } catch (error) {
-      await this.gateway.request(`rest/v1/media_assets?id=eq.${encodeURIComponent(mediaAsset.id)}`, { method: 'DELETE' }).catch(() => undefined);
+      await this.gateway.deleteStorageObjects(config.supabase.curationSubmissionsBucket, [input.objectPath]).catch(() => undefined);
       throw error;
     }
-    return mediaAsset;
   }
 
   async listApplicationMedia(applicationId, principal) {
     await this.assertApplicationAccess(applicationId, principal);
-    const links = await this.gateway.request(`rest/v1/application_media?select=id,field_id,role,position,media_asset_id&application_id=eq.${encodeURIComponent(applicationId)}&order=role.asc,position.asc`);
+    const links = await this.gateway.request(`rest/v1/application_media?select=id,field_id,role,position,media_asset_id,version_group_id,version_number,archived_at,replaces_application_media_id&application_id=eq.${encodeURIComponent(applicationId)}&archived_at=is.null&order=role.asc,position.asc`);
     return Promise.all(links.map(async (link) => {
-      const assets = await this.gateway.request(`rest/v1/media_assets?select=id,storage_bucket,object_path,original_filename,mime_type,review_status,visibility,curator_note&id=eq.${encodeURIComponent(link.media_asset_id)}`);
+      const assets = await this.gateway.request(`rest/v1/media_assets?select=id,storage_bucket,object_path,original_filename,mime_type,alt_text,review_status,visibility,curator_note,reviewed_at,reviewed_by_user_id&id=eq.${encodeURIComponent(link.media_asset_id)}`);
       const asset = assets[0];
       if (!asset) return null;
       const signed = await this.gateway.createSignedReadUrl(asset.storage_bucket, asset.object_path);
-      return { ...link, ...asset, url: new URL(signed.signedURL || signed.url, config.supabase.url).href };
+      const current = { ...link, ...asset, url: new URL(signed.signedURL || signed.url, config.supabase.url).href };
+      if (principal.role !== 'BECO_ADMIN') return current;
+      const versionLinks = await this.gateway.request(`rest/v1/application_media?select=id,field_id,role,position,media_asset_id,version_group_id,version_number,archived_at,replaces_application_media_id&application_id=eq.${encodeURIComponent(applicationId)}&version_group_id=eq.${encodeURIComponent(link.version_group_id)}&order=version_number.asc`);
+      const versions = await Promise.all(versionLinks.map(async (versionLink) => {
+        const versionAssets = await this.gateway.request(`rest/v1/media_assets?select=id,storage_bucket,object_path,original_filename,mime_type,alt_text,review_status,visibility,curator_note,reviewed_at,reviewed_by_user_id,created_at&id=eq.${encodeURIComponent(versionLink.media_asset_id)}&limit=1`);
+        const versionAsset = versionAssets[0];
+        if (!versionAsset) return null;
+        const versionUrl = await this.gateway.createSignedReadUrl(versionAsset.storage_bucket, versionAsset.object_path);
+        return { ...versionLink, ...versionAsset, url: new URL(versionUrl.signedURL || versionUrl.url, config.supabase.url).href, isCurrent: versionLink.archived_at === null };
+      }));
+      return { ...current, versions: versions.filter(Boolean), versionCount: versions.filter(Boolean).length };
     })).then((items) => items.filter(Boolean));
   }
 
   async removeApplicationMedia(applicationId, mediaAssetId, principal) {
     const { application } = await this.assertApplicationAccess(applicationId, principal);
     if (principal.role !== 'EXHIBITOR') throw new HttpError(403, 'FORBIDDEN', 'Somente o expositor remove o próprio envio.');
-    if (!uploadableApplicationStatuses.has(application.status)) {
+    if (application.status !== 'DRAFT') {
       throw new HttpError(409, 'APPLICATION_NOT_EDITABLE', 'Esta inscrição não permite remover imagens.');
     }
     if (application.status === 'DRAFT') await new FormsService(this.gateway).getForApplicant(application.fair_edition_id, principal);
-    const links = await this.gateway.request(`rest/v1/application_media?select=media_asset_id&application_id=eq.${encodeURIComponent(applicationId)}&media_asset_id=eq.${encodeURIComponent(mediaAssetId)}&limit=1`);
-    if (!links[0]) throw new HttpError(404, 'MEDIA_NOT_FOUND', 'Imagem não encontrada nesta inscrição.');
-    const assets = await this.gateway.request(`rest/v1/media_assets?select=id,storage_bucket,object_path&id=eq.${encodeURIComponent(mediaAssetId)}&limit=1`);
-    const asset = assets[0];
-    if (!asset) throw new HttpError(404, 'MEDIA_NOT_FOUND', 'Imagem não encontrada.');
-    await this.gateway.request(`rest/v1/media_assets?id=eq.${encodeURIComponent(mediaAssetId)}`, { method: 'DELETE' });
+    const result = await this.gateway.request('rest/v1/rpc/remove_draft_application_media', {
+      method: 'POST', body: {
+        p_application_id: applicationId,
+        p_media_asset_id: mediaAssetId,
+        p_actor_user_id: principal.id
+      }
+    });
+    const asset = Array.isArray(result) ? result[0] : result;
+    if (!asset) throw new HttpError(404, 'MEDIA_NOT_FOUND', 'Imagem não encontrada nesta inscrição.');
     const storageDeleted = await this.gateway.deleteStorageObjects(asset.storage_bucket, [asset.object_path])
       .then(() => true).catch(() => false);
     return { deleted: true, storageDeleted };

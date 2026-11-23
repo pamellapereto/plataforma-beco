@@ -199,7 +199,7 @@ export class ApplicationsService {
     }
     const requiredMediaFields = fields.filter((field) => field.is_required && ['IMAGE', 'FILE'].includes(field.type) && conditionApplies(field, answersByKey));
     if (requiredMediaFields.length) {
-      const media = await this.gateway.request(`rest/v1/application_media?select=id,field_id,role&application_id=eq.${applicationId}`);
+      const media = await this.gateway.request(`rest/v1/application_media?select=id,field_id,role&application_id=eq.${applicationId}&archived_at=is.null`);
       for (const field of requiredMediaFields) {
         const assigned = media.filter((item) => item.field_id === field.id);
         const legacy = requiredMediaFields.length === 1 ? media.filter((item) => !item.field_id && item.role === 'PORTFOLIO') : [];
@@ -230,18 +230,15 @@ export class ApplicationsService {
       throw new HttpError(409, 'APPLICATION_NOT_EDITABLE', 'Não é possível solicitar uma exceção nesta etapa.');
     }
     const data = validateExceptionRequest(input);
-    const existing = await this.gateway.request(`rest/v1/application_exception_requests?select=id&application_id=eq.${applicationId}&limit=1`);
-    if (existing[0]) {
-      const rows = await this.gateway.request(`rest/v1/application_exception_requests?id=eq.${existing[0].id}`, {
-        method: 'PATCH', headers: { Prefer: 'return=representation' }, body: { reason: data.reason, request_type: data.requestType, status: 'PENDING', updated_at: new Date().toISOString() }
-      });
-      return rows[0];
-    }
-    const rows = await this.gateway.request('rest/v1/application_exception_requests', {
-      method: 'POST', headers: { Prefer: 'return=representation' },
-      body: { application_id: applicationId, reason: data.reason, request_type: data.requestType }
+    const result = await this.gateway.request('rest/v1/rpc/upsert_application_exception_request', {
+      method: 'POST', body: {
+        p_application_id: applicationId,
+        p_actor_user_id: principal.id,
+        p_request_type: data.requestType,
+        p_reason: data.reason
+      }
     });
-    return rows[0];
+    return Array.isArray(result) ? result[0] : result;
   }
 
   async listMine(principal) {
@@ -283,7 +280,7 @@ export class ApplicationsService {
   async cancel(applicationId, principal) {
     if (principal.role !== 'EXHIBITOR') throw new HttpError(403, 'FORBIDDEN', 'Somente o expositor pode cancelar a própria inscrição.');
     const application = await this.applicationAccess(applicationId, principal);
-    if (['CONFIRMED', 'FINISHED', 'CANCELLED', 'DECLINED'].includes(application.status)) throw new HttpError(409, 'APPLICATION_NOT_CANCELLABLE', 'Esta inscrição não pode ser cancelada.');
+    if (['CONFIRMED', 'CANCELLED', 'DECLINED'].includes(application.status)) throw new HttpError(409, 'APPLICATION_NOT_CANCELLABLE', 'Esta inscrição não pode ser cancelada.');
     const result = await this.gateway.request('rest/v1/rpc/transition_application', {
       method: 'POST', body: {
         p_application_id: applicationId,
