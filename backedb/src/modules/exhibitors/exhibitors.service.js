@@ -115,7 +115,7 @@ export class ExhibitorsService {
 
   async publicDetail(exhibitorId) {
     validateUuid(exhibitorId, 'Expositor');
-    const rows = await this.gateway.request(`rest/v1/exhibitors?select=id,display_name,bio,city,state,instagram_url,social_links&id=eq.${exhibitorId}&status=eq.APPROVED&profile_visibility=eq.PUBLIC&limit=1`);
+    const rows = await this.gateway.request(`rest/v1/exhibitors?select=id,display_name,contact_name,phone,bio,city,state,instagram_url,social_links&id=eq.${exhibitorId}&status=eq.APPROVED&profile_visibility=eq.PUBLIC&limit=1`);
     const profile = rows[0];
     if (!profile) throw new HttpError(404, 'EXHIBITOR_NOT_FOUND', 'Expositor não encontrado.');
     const [categories, portfolio, applications] = await Promise.all([
