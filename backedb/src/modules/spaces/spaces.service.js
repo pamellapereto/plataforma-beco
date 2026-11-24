@@ -23,7 +23,7 @@ function spaceInput(input) {
   const y = input.yCoordinate === undefined || input.yCoordinate === null ? null : Number(input.yCoordinate);
   if (!code || code.length > 40) throw new HttpError(422, 'INVALID_SPACE', 'Código do espaço inválido.');
   if (!Number.isFinite(width) || width <= 0 || width > 100 || !Number.isFinite(height) || height <= 0 || height > 100) throw new HttpError(422, 'INVALID_SPACE', 'Dimensões do espaço inválidas.');
-  if ((x !== null && !Number.isFinite(x)) || (y !== null && !Number.isFinite(y))) throw new HttpError(422, 'INVALID_SPACE', 'Coordenadas do espaço inválidas.');
+  if ((x === null) !== (y === null) || (x !== null && (!Number.isFinite(x) || x < 0 || x > 100)) || (y !== null && (!Number.isFinite(y) || y < 0 || y > 100))) throw new HttpError(422, 'INVALID_SPACE', 'A posição do espaço na planta deve estar entre 0 e 100 por cento.');
   return { ...geographicCoordinates(input), code, label, width_m: width, height_m: height, x_coordinate: x, y_coordinate: y, is_available: true };
 }
 
@@ -47,10 +47,13 @@ function spacePatch(input) {
   for (const [source, target] of [['xCoordinate', 'x_coordinate'], ['yCoordinate', 'y_coordinate']]) {
     if (input[source] !== undefined) {
       const value = input[source] === null ? null : Number(input[source]);
-      if (value !== null && !Number.isFinite(value)) throw new HttpError(422, 'INVALID_SPACE', 'Coordenadas do espaço inválidas.');
+      if (value !== null && (!Number.isFinite(value) || value < 0 || value > 100)) throw new HttpError(422, 'INVALID_SPACE', 'A posição do espaço na planta deve estar entre 0 e 100 por cento.');
       patch[target] = value;
     }
   }
+  const finalX = patch.x_coordinate;
+  const finalY = patch.y_coordinate;
+  if ((finalX === null) !== (finalY === null)) throw new HttpError(422, 'INVALID_SPACE', 'Informe juntas as posições horizontal e vertical da planta.');
   if (!Object.keys(patch).length) throw new HttpError(422, 'EMPTY_UPDATE', 'Informe ao menos um campo do espaço.');
   return patch;
 }
@@ -145,14 +148,22 @@ export class SpacesService {
     const editionIds = [...new Set(applications.map((item) => item.fair_edition_id))];
     if (!editionIds.length) return [];
     const assignedIds=applications.map(a=>a.assigned_space_id).filter(Boolean);
-    const [spaces,editions]=await Promise.all([
-      assignedIds.length?this.gateway.request(`rest/v1/fair_spaces?select=id,code,label,width_m,height_m,latitude,longitude,fair_edition_id&id=in.(${assignedIds.join(',')})`):[],
+    const [spaces,editions,planLinks]=await Promise.all([
+      assignedIds.length?this.gateway.request(`rest/v1/fair_spaces?select=id,code,label,width_m,height_m,x_coordinate,y_coordinate,fair_edition_id&id=in.(${assignedIds.join(',')})`):[],
       this.gateway.request(`rest/v1/fair_editions?select=id,title,slug,starts_at,ends_at,location_id&id=in.(${editionIds.join(',')})`)
+      ,this.gateway.request(`rest/v1/fair_edition_media?select=fair_edition_id,media_asset_id&fair_edition_id=in.(${editionIds.join(',')})&role=eq.MAP`)
     ]);
     const locationIds=[...new Set(editions.map(e=>e.location_id).filter(Boolean))];
     const locations=locationIds.length?await this.gateway.request(`rest/v1/locations?select=id,name,address_line,neighborhood,city,state,latitude,longitude&id=in.(${locationIds.join(',')})`):[];
     const byLocation=new Map(locations.map(l=>[l.id,l]));
-    const byEdition=new Map(editions.map(e=>[e.id,{...e,location:byLocation.get(e.location_id)||null}]));
+    const planAssetIds=planLinks.map(item=>item.media_asset_id);
+    const planAssets=planAssetIds.length?await this.gateway.request(`rest/v1/media_assets?select=id,storage_bucket,object_path,alt_text&id=in.(${planAssetIds.join(',')})`):[];
+    const plansByAsset=new Map(await Promise.all(planAssets.map(async asset=>{
+      const signed=await this.gateway.createSignedReadUrl(asset.storage_bucket,asset.object_path,900);
+      return [asset.id,{url:signed.signedURL||signed.url,altText:asset.alt_text||'Planta do espaço do evento'}];
+    })));
+    const planByEdition=new Map(planLinks.map(link=>[link.fair_edition_id,plansByAsset.get(link.media_asset_id)||null]));
+    const byEdition=new Map(editions.map(e=>[e.id,{...e,location:byLocation.get(e.location_id)||null,spacePlan:planByEdition.get(e.id)||null}]));
     return applications.map(application=>({
       ...application,
       edition:byEdition.get(application.fair_edition_id)||null,

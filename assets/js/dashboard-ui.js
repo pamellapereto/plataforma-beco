@@ -11,7 +11,6 @@ const dashboardViews = {
  fairs: { title: 'Feiras e edições', description: 'Cadastre feiras, organize edições e prepare formulários, datas e materiais.' },
  applications: { title: 'Inscrições e curadoria', description: 'Trabalhe dentro de uma edição, compare candidaturas e acompanhe a diversidade da seleção.' },
  exhibitors: { title: 'Expositores', description: 'Consulte cadastros, situação dos perfis e portfólios enviados.' },
- spaces: { title: 'Espaços da edição', description: 'Organize a ocupação e atribua espaços para a edição selecionada.' },
  attendance: { title: 'Presença e avaliações', description: 'Registre comparecimento e acompanhe as avaliações após o evento.' }
 };
 
@@ -91,7 +90,7 @@ function decorateEditionWorkspace(main) {
  panel.prepend(context);
  const quickNav = document.createElement('div');
  quickNav.className = 'edition-quick-nav';
- quickNav.innerHTML = '<button type="button" class="btn btn-secondary" data-dashboard-view="spaces">Espaços desta edição</button><button type="button" class="btn btn-secondary" data-dashboard-view="attendance">Presença e avaliações</button>';
+ quickNav.innerHTML = '<button type="button" class="btn btn-secondary" data-open-spaces-modal>Espaços desta edição</button><button type="button" class="btn btn-secondary" data-dashboard-view="attendance">Presença e avaliações</button>';
  context.after(quickNav);
 }
 
@@ -116,7 +115,7 @@ function buildDashboardOverview(main) {
  const overview = document.createElement('section');
  overview.className = 'dashboard-overview';
  overview.dataset.dashboardOverview = '';
- overview.innerHTML = `<div class="overview-intro"><span class="eyebrow">Organização do trabalho</span><h2>O que você precisa fazer agora?</h2><p>Acesse cada módulo sem percorrer uma página longa. A edição ativa conecta curadoria, espaços e pós-evento.</p></div><div class="overview-edition"><span>Edição ativa</span><strong>${selectedEdition}</strong><button type="button" class="btn btn-primary" data-dashboard-view="applications">Abrir curadoria da edição</button></div><div class="overview-actions"><button type="button" data-dashboard-view="fairs"><span>01</span><b>Feiras e edições</b><small>Cadastro, configuração e publicação</small></button><button type="button" data-dashboard-view="applications"><span>02</span><b>Inscrições e curadoria</b><small>Diversidade, seleção e análise</small></button><button type="button" data-dashboard-view="exhibitors"><span>03</span><b>Expositores</b><small>Perfis e portfólios</small></button><button type="button" data-dashboard-view="spaces"><span>04</span><b>Espaços</b><small>Organização da edição ativa</small></button></div>`;
+ overview.innerHTML = `<div class="overview-intro"><span class="eyebrow">Organização do trabalho</span><h2>O que você precisa fazer agora?</h2><p>Acesse cada módulo sem percorrer uma página longa. A edição ativa conecta curadoria, espaços e pós-evento.</p></div><div class="overview-edition"><span>Edição ativa</span><strong>${selectedEdition}</strong><button type="button" class="btn btn-primary" data-dashboard-view="applications">Abrir curadoria da edição</button></div><div class="overview-actions"><button type="button" data-dashboard-view="fairs"><span>01</span><b>Feiras e edições</b><small>Cadastro, configuração e publicação</small></button><button type="button" data-dashboard-view="applications"><span>02</span><b>Inscrições e curadoria</b><small>Diversidade, seleção e análise</small></button><button type="button" data-dashboard-view="exhibitors"><span>03</span><b>Expositores</b><small>Perfis e portfólios</small></button></div>`;
  const stats = main.querySelector('.dash-stats');
  stats?.after(overview);
 }
@@ -125,7 +124,7 @@ function applyDashboardView(view) {
  const main = document.querySelector('.private-main');
  if (!main || !main.querySelector('#inscricoes')) return;
  currentDashboardView = dashboardViews[view] ? view : 'overview';
- const panelByView = { fairs: 'feiras', applications: 'inscricoes', exhibitors: 'expositores', spaces: 'espacos', attendance: 'presencas' };
+ const panelByView = { fairs: 'feiras', applications: 'inscricoes', exhibitors: 'expositores', attendance: 'presencas' };
  main.removeAttribute('data-home-editor');
  main.removeAttribute('data-about-editor');
  main.dataset.dashboardView = currentDashboardView;
@@ -205,6 +204,8 @@ function installDashboardViewNavigation() {
  if (main && main.dataset.dashboardViews !== 'ready') {
   main.dataset.dashboardViews = 'ready';
   main.addEventListener('click', event => {
+   const spacesButton = event.target.closest('[data-open-spaces-modal]');
+   if (spacesButton) { event.preventDefault(); main.querySelector('[data-spaces]')?.click(); return; }
    const viewButton = event.target.closest('[data-dashboard-view]');
    if (viewButton) { event.preventDefault(); openDashboardView(viewButton.dataset.dashboardView); return; }
    const editionButton = event.target.closest('[data-open-edition]');

@@ -83,7 +83,7 @@ export class FairsService {
 
   async publicMediaMap(editionIds) {
     if (!editionIds.length) return new Map();
-    const links = await this.gateway.request(`rest/v1/fair_edition_media?select=id,fair_edition_id,media_asset_id,role,position&fair_edition_id=in.(${idsFilter(editionIds)})&order=position.asc`);
+    const links = await this.gateway.request(`rest/v1/fair_edition_media?select=id,fair_edition_id,media_asset_id,role,position&fair_edition_id=in.(${idsFilter(editionIds)})&role=in.(COVER,GALLERY)&order=position.asc`);
     const assetIds = links.map((link) => link.media_asset_id);
     const assets = assetIds.length
       ? await this.gateway.request(`rest/v1/media_assets?select=id,storage_bucket,object_path,original_filename,mime_type,alt_text&id=in.(${idsFilter(assetIds)})&visibility=eq.PUBLIC&review_status=eq.APPROVED`)

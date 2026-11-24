@@ -1,49 +1,41 @@
 import {api} from '../models/api.model.js';
 import {escapeHtml as h,field,notice,busy,bindForm,openDialog} from '../ui.js';
-import {createMap,pin} from '../maps.js';
-import {coordinates,locationAddress} from '../map-utils.js';
+
+const positioned=space=>space.x_coordinate!==null&&space.x_coordinate!==undefined&&space.y_coordinate!==null&&space.y_coordinate!==undefined&&Number.isFinite(Number(space.x_coordinate))&&Number.isFinite(Number(space.y_coordinate));
+const pointFromEvent=(stage,event)=>{const rect=stage.getBoundingClientRect();return{xCoordinate:Number((((event.clientX-rect.left)/rect.width)*100).toFixed(3)),yCoordinate:Number((((event.clientY-rect.top)/rect.height)*100).toFixed(3))};};
+
 export async function manageStandMap(edition,refresh){
- const dialog=openDialog('Mapa e estandes da edição','<p>Carregando…</p>');const root=dialog.querySelector('[data-dialog-body]');
- let instance,disposed=false,adding=false;const markers=new Map();
- dialog.addEventListener('close',()=>{disposed=true;instance?.destroy();});
+ const dialog=openDialog('Planta e estandes da edição','<p>Carregando…</p>');
+ const root=dialog.querySelector('[data-dialog-body]');
  const endpoint=`/curation/fair-editions/${edition.id}/spaces`;
+ const mediaEndpoint=`/admin/fair-editions/${edition.id}/media`;
+ let adding=false,spaceToPosition=null;
+ const spaceList=spaces=>spaces.map(space=>`<article class="workflow-question"><h4>${h(space.code)} · ${h(space.label||'')}</h4><p>${h(space.width_m)} × ${h(space.height_m)} m · ${space.is_available?'Disponível':`Ocupado${space.assignedExhibitor?' · '+h(space.assignedExhibitor):''}`}</p><p>${positioned(space)?'Posicionado na imagem':'Aguardando posição na imagem'}</p><button class="btn btn-small btn-secondary" data-edit="${h(space.id)}">Editar</button> ${positioned(space)?'':`<button class="btn btn-small btn-secondary" data-position="${h(space.id)}">Posicionar</button>`} <button class="btn btn-small btn-outline" data-remove="${h(space.id)}" ${space.is_available?'':'disabled'}>Excluir</button></article>`).join('')||'<p>Nenhum estande criado. Use “Adicionar estande no mapa do evento”.</p>';
+
  async function load(){
-  const spaces=await api.request(endpoint);if(disposed)return;instance?.destroy();instance=null;markers.clear();
-  root.innerHTML=`<h3>${h(edition.title)}</h3><p>${h(locationAddress(edition.location))}</p><p>Este mapa de estandes é privado. Você vê todos os espaços; cada expositor confirmado recebe somente seu próprio ponto.</p><div class="workflow-toolbar"><button class="btn btn-primary" data-add-pin>Adicionar estande no mapa</button><button class="btn btn-secondary" data-add-manual>Novo estande por coordenadas</button><button class="btn btn-outline" data-fit>Ver todos os pontos</button></div><p data-feedback aria-live="polite"></p><div class="map-layout"><div><div class="event-map stand-map" data-stand-map aria-label="Mapa administrativo dos estandes"></div><div class="map-public-point"><p>Para escolher a entrada pública do evento, mova o mapa e use o centro. Isso não publica os estandes.</p><button class="btn btn-secondary" data-save-location>Usar centro como entrada do evento</button><p data-location-feedback aria-live="polite"></p></div><p>Arraste um pin para reposicionar o estande; a nova posição será salva. Clique no pin para editar seus dados.</p></div><div class="map-space-list">${spaces.map(space=>`<article class="workflow-question"><h4>${h(space.code)} · ${h(space.label||'')}</h4><p>${h(space.width_m)} × ${h(space.height_m)} m · ${space.is_available?'Disponível':`Ocupado${space.assignedExhibitor?' · '+h(space.assignedExhibitor):''}`}</p><p>${coordinates(space)?'Posicionado no mapa':'Aguardando posição no mapa'}</p><button class="btn btn-small btn-secondary" data-edit="${h(space.id)}">Editar</button> <button class="btn btn-small btn-outline" data-focus="${h(space.id)}" ${coordinates(space)?'':'disabled'}>Localizar</button> <button class="btn btn-small btn-outline" data-remove="${h(space.id)}" ${space.is_available?'':'disabled'}>Excluir</button></article>`).join('')||'<p>Nenhum estande criado. Use Adicionar estande no mapa.</p>'}</div></div>`;
+  const [spaces,media]=await Promise.all([api.request(endpoint),api.request(mediaEndpoint)]);
+  const plan=media.find(item=>item.role==='MAP');
+  root.innerHTML=`<h3>${h(edition.title)}</h3><p>Envie uma imagem da planta ou do espaço do evento. A organização visualiza todos os estandes; cada expositor confirmado visualiza a imagem completa e somente o próprio pin.</p><form class="space-plan-upload"><label class="form-field">Imagem do espaço do evento<input type="file" name="plan" accept="image/jpeg,image/png,image/webp" ${plan?'':'required'}></label><label class="form-field">Descrição<input name="altText" maxlength="255" required value="${h(plan?.asset?.alt_text||`Planta do espaço de ${edition.title}`)}"></label><button class="btn btn-secondary" type="submit">${plan?'Substituir imagem':'Enviar imagem'}</button></form><p data-feedback aria-live="polite"></p>${plan?`<div class="workflow-toolbar"><button class="btn btn-primary" type="button" data-add-pin>Adicionar estande no mapa do evento</button><button class="btn btn-outline" type="button" data-remove-plan>Remover imagem do espaço</button></div><div class="map-layout"><div><div class="space-plan-stage" data-plan-stage><img src="${h(plan.asset.url)}" alt="${h(plan.asset.alt_text||'Planta do espaço do evento')}">${spaces.filter(positioned).map(space=>`<button type="button" class="space-plan-pin${space.is_available?'':' is-assigned'}" style="left:${Number(space.x_coordinate)}%;top:${Number(space.y_coordinate)}%" data-pin="${h(space.id)}" title="${h(space.code)}${space.assignedExhibitor?' · '+h(space.assignedExhibitor):''}"><span>${h(space.code)}</span></button>`).join('')}</div><p>Arraste um pin para reposicioná-lo. Clique nele para editar os dados do estande.</p></div><div class="map-space-list">${spaceList(spaces)}</div></div>`:`<div class="empty-state"><p>Envie primeiro a imagem do espaço para posicionar os estandes.</p></div>`}`;
   const feedback=root.querySelector('[data-feedback]');
-  const edit=(space,point)=>{
-   const selected=point||coordinates(space);
-   const modal=openDialog(space?'Editar estande':'Novo estande',`<form><div class="form-grid">${field('code','Código',space?.code||'','text','required maxlength="40"')}${field('label','Nome descritivo',space?.label||'','text','maxlength="100"')}${field('widthM','Largura (m)',space?.width_m||2,'number','required min="0.1" max="100" step="0.1"')}${field('heightM','Profundidade (m)',space?.height_m||2,'number','required min="0.1" max="100" step="0.1"')}${field('latitude','Latitude',selected?.[0]??'','number','min="-90" max="90" step="0.000001"')}${field('longitude','Longitude',selected?.[1]??'','number','min="-180" max="180" step="0.000001"')}</div><p>Informe as duas coordenadas, ou deixe ambas vazias para posicionar depois. No mapa, você pode arrastar o pin para ajustar a posição.</p><p data-feedback></p><button class="btn btn-primary" type="submit">Salvar estande</button></form>`);
-   bindForm(modal.querySelector('form'),async data=>{
-    if((data.latitude==='')!==(data.longitude===''))throw Error('Informe latitude e longitude juntas.');
-    await api.request(space?`${endpoint}/${space.id}`:endpoint,{method:space?'PATCH':'POST',body:{...data,latitude:data.latitude===''?null:Number(data.latitude),longitude:data.longitude===''?null:Number(data.longitude)}});
-    modal.close();await load();await refresh();
-   });
-  };
-  root.querySelector('[data-add-manual]').onclick=()=>edit(null,null);
-  root.querySelectorAll('[data-edit]').forEach(b=>b.onclick=()=>edit(spaces.find(s=>s.id===b.dataset.edit)));
-  root.querySelectorAll('[data-remove]').forEach(b=>b.onclick=()=>{if(confirm('Excluir este estande?'))busy(b,async()=>{await api.request(`${endpoint}/${b.dataset.remove}`,{method:'DELETE'});await load();await refresh();},feedback);});
-  root.querySelectorAll('[data-focus]').forEach(b=>b.onclick=()=>{const marker=markers.get(b.dataset.focus);if(marker){instance.map.setView(marker.getLatLng(),19);marker.openTooltip();}});
-  const addButton=root.querySelector('[data-add-pin]');addButton.onclick=()=>{adding=!adding;addButton.textContent=adding?'Cancelar adição no mapa':'Adicionar estande no mapa';notice(feedback,adding?'Clique no local desejado do mapa para criar um estande.':'Adição cancelada.',true);};
-  try{
-   const points=spaces.map(coordinates).filter(Boolean),locationPoint=coordinates(edition.location);
-   instance=await createMap(root.querySelector('[data-stand-map]'),{center:locationPoint||points[0],feedback});if(disposed){instance.destroy();return;}
-   const {map,L}=instance;
-   if(locationPoint)L.circleMarker(locationPoint,{radius:9,color:'#16784b',fillOpacity:0.8}).addTo(map).bindTooltip('Entrada pública do evento');
-   for(const space of spaces){const point=coordinates(space);if(!point)continue;
-    const marker=pin(L,map,point,`${space.code}${space.assignedExhibitor?' · '+space.assignedExhibitor:''}`,{draggable:true,onClick:()=>edit(space),onMove:async marker=>{
-      const previous=coordinates(space);const next=marker.getLatLng();marker.dragging.disable();
-      try{const saved=await api.request(`${endpoint}/${space.id}`,{method:'PATCH',body:{latitude:Number(next.lat.toFixed(6)),longitude:Number(next.lng.toFixed(6))}});space.latitude=saved.latitude;space.longitude=saved.longitude;notice(feedback,`Posição do estande ${space.code} salva.`,true);}catch(error){marker.setLatLng(previous);notice(feedback,error.message);}finally{if(!disposed)marker.dragging.enable();}
-    }});markers.set(space.id,marker);
-   }
-   const fit=()=>{const all=[...spaces.map(coordinates).filter(Boolean),...(locationPoint?[locationPoint]:[])];if(all.length)map.fitBounds(all,{padding:[30,30],maxZoom:18});};fit();
-   root.querySelector('[data-fit]').onclick=fit;
-   map.on('click',event=>{if(!adding)return;adding=false;addButton.textContent='Adicionar estande no mapa';edit(null,[Number(event.latlng.lat.toFixed(6)),Number(event.latlng.lng.toFixed(6))]);});
-   root.querySelector('[data-save-location]').onclick=event=>busy(event.currentTarget,async()=>{
-    const center=map.getCenter();const latitude=Number(center.lat.toFixed(6)),longitude=Number(center.lng.toFixed(6));
-    await api.request(`/admin/locations/${edition.location_id}`,{method:'PATCH',body:{latitude,longitude}});edition.location={...edition.location,latitude,longitude};await load();await refresh();notice(root.querySelector('[data-location-feedback]'),'Entrada pública salva. Ela será exibida na página do evento.',true);
-   },root.querySelector('[data-location-feedback]'));
-  }catch(error){notice(feedback,error.message);root.querySelector('[data-add-pin]').disabled=true;root.querySelector('[data-save-location]').disabled=true;}
+  const upload=root.querySelector('.space-plan-upload');
+  bindForm(upload,async data=>{const file=upload.elements.plan.files[0];if(!file){notice(feedback,'Escolha uma imagem para substituir a planta.');return;}await api.upload(file,mediaEndpoint,{role:'MAP',altText:data.altText,position:0,replaceMediaId:plan?.id});await load();await refresh();});
+  if(!plan)return;
+  root.querySelector('[data-remove-plan]').onclick=()=>{if(confirm('Remover a imagem do espaço? Os estandes continuarão cadastrados, mas ficarão sem planta visível.'))busy(root.querySelector('[data-remove-plan]'),async()=>{await api.request(`${mediaEndpoint}/${plan.id}`,{method:'DELETE'});await load();await refresh();},feedback);};
+  const stage=root.querySelector('[data-plan-stage]');
+  const addButton=root.querySelector('[data-add-pin]');
+  addButton.onclick=()=>{adding=!adding;spaceToPosition=null;addButton.textContent=adding?'Cancelar adição':'Adicionar estande no mapa do evento';notice(feedback,adding?'Clique na imagem onde o novo estande deve ficar.':'Adição cancelada.',true);};
+  stage.onclick=event=>{if(event.target.closest('[data-pin]'))return;const point=pointFromEvent(stage,event);if(spaceToPosition){const selected=spaceToPosition;spaceToPosition=null;savePosition(selected,point,feedback);return;}if(!adding)return;adding=false;addButton.textContent='Adicionar estande no mapa do evento';editSpace(null,point);};
+  root.querySelectorAll('[data-edit]').forEach(button=>button.onclick=()=>editSpace(spaces.find(space=>space.id===button.dataset.edit)));
+  root.querySelectorAll('[data-position]').forEach(button=>button.onclick=()=>{spaceToPosition=spaces.find(space=>space.id===button.dataset.position);adding=false;addButton.textContent='Adicionar estande no mapa do evento';notice(feedback,`Clique na imagem para posicionar o estande ${spaceToPosition.code}.`,true);});
+  root.querySelectorAll('[data-remove]').forEach(button=>button.onclick=()=>{if(confirm('Excluir este estande?'))busy(button,async()=>{await api.request(`${endpoint}/${button.dataset.remove}`,{method:'DELETE'});await load();await refresh();},feedback);});
+  root.querySelectorAll('[data-pin]').forEach(button=>bindPin(button,spaces.find(space=>space.id===button.dataset.pin),stage,feedback));
+
+  function editSpace(space,point){
+   const modal=openDialog(space?'Editar estande':'Novo estande',`<form><div class="form-grid">${field('code','Código',space?.code||'','text','required maxlength="40"')}${field('label','Nome descritivo',space?.label||'','text','maxlength="100"')}${field('widthM','Largura (m)',space?.width_m||2,'number','required min="0.1" max="100" step="0.1"')}${field('heightM','Profundidade (m)',space?.height_m||2,'number','required min="0.1" max="100" step="0.1"')}</div><p data-feedback></p><button class="btn btn-primary" type="submit">Salvar estande</button></form>`);
+   bindForm(modal.querySelector('form'),async data=>{await api.request(space?`${endpoint}/${space.id}`:endpoint,{method:space?'PATCH':'POST',body:{...data,...(point||{})}});modal.close();await load();await refresh();});
+  }
+  async function savePosition(space,point,target){try{await api.request(`${endpoint}/${space.id}`,{method:'PATCH',body:point});notice(target,`Posição do estande ${space.code} salva.`,true);await load();await refresh();}catch(error){notice(target,error.message);}}
+  function bindPin(button,space,container,target){let moved=false;button.onpointerdown=event=>{if(event.button!==0)return;moved=false;button.setPointerCapture(event.pointerId);const move=moveEvent=>{moved=true;const point=pointFromEvent(container,moveEvent);button.style.left=`${Math.max(0,Math.min(100,point.xCoordinate))}%`;button.style.top=`${Math.max(0,Math.min(100,point.yCoordinate))}%`;};const up=async upEvent=>{button.removeEventListener('pointermove',move);button.removeEventListener('pointerup',up);if(moved)await savePosition(space,pointFromEvent(container,upEvent),target);};button.addEventListener('pointermove',move);button.addEventListener('pointerup',up);};button.onclick=()=>{if(!moved)editSpace(space);};}
  }
  try{await load();}catch(error){notice(root,error.message);}
 }
