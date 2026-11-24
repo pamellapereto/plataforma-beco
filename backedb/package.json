@@ -8,7 +8,9 @@
     "start": "node src/server.js",
     "test": "node --test",
     "bootstrap:admin": "node --env-file=.env src/scripts/bootstrap-admin.js",
-    "seed:demo": "node --env-file=.env src/scripts/seed-demo.js"
+    "seed:demo": "node --env-file=.env src/scripts/seed-demo.js",
+    "seed:four-fairs": "node --env-file=../.env.local src/scripts/seed-four-fairs.js",
+    "seed:four-fairs:forms": "node --env-file=../.env.local src/scripts/seed-four-fairs.js --forms-only"
   },
   "engines": {
     "node": ">=20"
