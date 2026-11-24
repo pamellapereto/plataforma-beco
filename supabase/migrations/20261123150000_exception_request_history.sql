@@ -119,18 +119,22 @@ BEGIN
     RAISE EXCEPTION 'EXCEPTION_REQUEST_FORBIDDEN';
   END IF;
 
-  SELECT aer, f.organization_id
-  INTO v_request, v_organization_id
+  SELECT aer.*
+  INTO v_request
   FROM public.application_exception_requests aer
-  JOIN public.applications a ON a.id = aer.application_id
-  JOIN public.fair_editions fe ON fe.id = a.fair_edition_id
-  JOIN public.fairs f ON f.id = fe.fair_id
   WHERE aer.id = p_request_id
   FOR UPDATE OF aer;
 
   IF v_request.id IS NULL THEN
     RAISE EXCEPTION 'EXCEPTION_REQUEST_NOT_FOUND';
   END IF;
+
+  SELECT f.organization_id
+  INTO v_organization_id
+  FROM public.applications a
+  JOIN public.fair_editions fe ON fe.id = a.fair_edition_id
+  JOIN public.fairs f ON f.id = fe.fair_id
+  WHERE a.id = v_request.application_id;
 
   IF v_organization_id IS DISTINCT FROM v_actor.organization_id THEN
     RAISE EXCEPTION 'EXCEPTION_REQUEST_FORBIDDEN';

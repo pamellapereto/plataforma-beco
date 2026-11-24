@@ -6,8 +6,12 @@ import { HttpError } from '../../lib/http.js';
 import { supabaseGateway } from '../../lib/supabase.js';
 import { validateUuid } from '../fairs/fairs.validation.js';
 
-const roles = new Set(['COVER', 'GALLERY']);
-const singletonRoles = new Set(['COVER']);
+const roles = new Set(['COVER', 'GALLERY', 'MAP']);
+const singletonRoles = new Set(['COVER', 'MAP']);
+
+const bucketForRole = (role) => role === 'MAP'
+  ? config.supabase.curationSubmissionsBucket
+  : config.supabase.publicMediaBucket;
 
 function cleanFilename(name = 'imagem') {
   return String(name).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
@@ -88,9 +92,10 @@ export class FairMediaService {
     const file = validateFile(input);
     requiredDescription(input?.altText);
     const path = `fair-editions/${editionId}/${role.toLowerCase()}/${randomUUID()}-${cleanFilename(file.originalFilename)}`;
-    const signed = await this.gateway.createSignedUploadUrl(config.supabase.publicMediaBucket, path);
+    const bucket = bucketForRole(role);
+    const signed = await this.gateway.createSignedUploadUrl(bucket, path);
     return {
-      bucket: config.supabase.publicMediaBucket,
+      bucket,
       objectPath: path,
       uploadUrl: mediaUrl(signed.url || signed.signedURL),
       token: signed.token,
@@ -105,7 +110,8 @@ export class FairMediaService {
     const altText = requiredDescription(input?.altText);
     const prefix = `fair-editions/${editionId}/${role.toLowerCase()}/`;
     if (!String(input?.objectPath || '').startsWith(prefix)) throw new HttpError(422, 'INVALID_OBJECT_PATH', 'Caminho da imagem inválido.');
-    await assertStoredImage(this.gateway, config.supabase.publicMediaBucket, input);
+    const bucket = bucketForRole(role);
+    await assertStoredImage(this.gateway, bucket, input);
     const position = input.position === undefined ? await this.nextPosition(editionId, role) : Number(input.position);
     if (!Number.isInteger(position) || position < 0 || position > 500) throw new HttpError(422, 'INVALID_POSITION', 'Posição da imagem inválida.');
     if (singletonRoles.has(role) && position !== 0) throw new HttpError(422, 'INVALID_POSITION', 'Este tipo de imagem aceita somente a posição zero.');
@@ -122,13 +128,13 @@ export class FairMediaService {
     const assets = await this.gateway.request('rest/v1/media_assets', {
       method: 'POST', headers: { Prefer: 'return=representation' }, body: {
         owner_user_id: principal.id,
-        storage_bucket: config.supabase.publicMediaBucket,
+        storage_bucket: bucket,
         object_path: input.objectPath,
         original_filename: cleanFilename(file.originalFilename),
         mime_type: file.mimeType,
         byte_size: file.byteSize,
         alt_text: altText,
-        visibility: 'PUBLIC',
+        visibility: role === 'MAP' ? 'PRIVATE' : 'PUBLIC',
         review_status: 'APPROVED',
         reviewed_by_user_id: principal.id,
         reviewed_at: new Date().toISOString()
@@ -154,7 +160,9 @@ export class FairMediaService {
         const removed = await this.gateway.request(`rest/v1/media_assets?id=eq.${occupied[0].media_asset_id}`, { method: 'DELETE' }).then(() => true).catch(() => false);
         if (removed && previous[0]) await this.gateway.deleteStorageObjects(previous[0].storage_bucket, [previous[0].object_path]).catch(() => undefined);
       }
-      return { ...links[0], asset: { ...asset, url: publicUrl(asset) } };
+      const signed = role === 'MAP' ? await this.gateway.createSignedReadUrl(asset.storage_bucket, asset.object_path, 900) : null;
+      const url = role === 'MAP' ? (signed.signedURL || signed.url) : publicUrl(asset);
+      return { ...links[0], asset: { ...asset, url: mediaUrl(url) } };
     } catch (error) {
       await this.gateway.request(`rest/v1/media_assets?id=eq.${asset.id}`, { method: 'DELETE' }).catch(() => undefined);
       throw error;
@@ -169,10 +177,13 @@ export class FairMediaService {
       ? await this.gateway.request(`rest/v1/media_assets?select=*&id=in.(${assetIds.join(',')})`)
       : [];
     const byId = new Map(assets.map((asset) => [asset.id, asset]));
-    return links.map((link) => {
+    return Promise.all(links.map(async (link) => {
       const asset = byId.get(link.media_asset_id);
-      return { ...link, asset: asset ? { ...asset, url: publicUrl(asset) } : null };
-    });
+      if (!asset) return { ...link, asset: null };
+      const signed = link.role === 'MAP' ? await this.gateway.createSignedReadUrl(asset.storage_bucket, asset.object_path, 900) : null;
+      const url = link.role === 'MAP' ? (signed.signedURL || signed.url) : publicUrl(asset);
+      return { ...link, asset: { ...asset, url: mediaUrl(url) } };
+    }));
   }
 
   async remove(editionId, mediaId, principal) {
